@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Link } from "react-router-dom";
 import { TrendingUp, ShieldCheck, Zap } from "lucide-react";
+import LivePriceTicker from "@/components/LivePriceTicker";
+import TrendingCoins from "@/components/TrendingCoins";
 
 const Index = () => {
   return (
@@ -11,7 +13,7 @@ const Index = () => {
       <Navbar />
       <main className="flex-grow">
         {/* Hero Section */}
-        <section className="container mx-auto text-center py-20 lg:py-32 animate-fade-in-up">
+        <section className="container mx-auto text-center pt-20 pb-12 lg:pt-32 lg:pb-20 animate-fade-in-up">
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4 bg-gradient-to-r from-cyan-400 to-purple-500 text-transparent bg-clip-text">
             Yapay Zeka Destekli Kripto Sinyalleriyle Kazancınızı Artırın
           </h1>
@@ -24,6 +26,9 @@ const Index = () => {
             </Button>
           </Link>
         </section>
+
+        {/* Live Price Ticker */}
+        <LivePriceTicker />
 
         {/* Backtest/Features Section */}
         <section 
@@ -55,6 +60,18 @@ const Index = () => {
             ))}
           </div>
         </section>
+
+        {/* Trending Coins Section */}
+        <section 
+          className="py-20 animate-fade-in-up"
+          style={{ animationDelay: '0.4s' }}
+        >
+          <div className="container mx-auto">
+            <h2 className="text-3xl font-bold text-center mb-10">Trenddeki Coinler</h2>
+            <TrendingCoins />
+          </div>
+        </section>
+
       </main>
       <MadeWithDyad />
     </div>
