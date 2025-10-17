@@ -1,21 +1,52 @@
 import React from 'react';
 import SignalCard from './SignalCard';
-import { CryptoSignal } from '@/types/crypto';
+import { useBinanceData } from '@/hooks/useBinanceData';
+import { Skeleton } from './ui/skeleton';
 
-const mockSignals: CryptoSignal[] = [
-  { id: '1', name: 'Bitcoin', symbol: 'BTC', price: 68450.78, change24h: 2.5, signal: 'Buy' },
-  { id: '2', name: 'Ethereum', symbol: 'ETH', price: 3560.12, change24h: -1.2, signal: 'Sell' },
-  { id: '3', name: 'Solana', symbol: 'SOL', price: 165.45, change24h: 5.8, signal: 'Buy' },
-  { id: '4', name: 'Dogecoin', symbol: 'DOGE', price: 0.158, change24h: 0.5, signal: 'Hold' },
-  { id: '5', name: 'Pepe', symbol: 'PEPE', price: 0.00001195, change24h: -8.3, signal: 'Sell' },
-  { id: '6', name: 'Cardano', symbol: 'ADA', price: 0.45, change24h: 1.1, signal: 'Hold' },
+// Sinyallerini göstermek istediğimiz kripto paraların listesi
+const COIN_LIST = [
+  { symbol: 'BTC', name: 'Bitcoin' },
+  { symbol: 'ETH', name: 'Ethereum' },
+  { symbol: 'SOL', name: 'Solana' },
+  { symbol: 'DOGE', name: 'Dogecoin' },
+  { symbol: 'PEPE', name: 'Pepe' },
+  { symbol: 'ADA', name: 'Cardano' },
 ];
 
 const SignalList = () => {
+  const { data: liveData, isLoading: isLiveLoading } = useBinanceData();
+
+  if (isLiveLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-[190px] w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  // Canlı veriyi, göstereceğimiz coin listesiyle eşleştir
+  const signalsToShow = COIN_LIST.map(coin => {
+    const ticker = liveData?.find(d => d.symbol === `${coin.symbol}USDT`);
+    if (!ticker) return null;
+    return {
+      ...coin,
+      price: parseFloat(ticker.lastPrice),
+      change24h: parseFloat(ticker.priceChangePercent),
+    };
+  }).filter(Boolean);
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {mockSignals.map((signal) => (
-        <SignalCard key={signal.id} data={signal} />
+      {signalsToShow.map((signal) => (
+        signal && <SignalCard 
+          key={signal.symbol} 
+          name={signal.name}
+          symbol={signal.symbol}
+          price={signal.price}
+          change24h={signal.change24h}
+        />
       ))}
     </div>
   );

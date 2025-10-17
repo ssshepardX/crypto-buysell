@@ -2,25 +2,30 @@ import React from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { CryptoSignal } from '@/types/crypto';
+import { Signal } from '@/types/crypto';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { useSignalData } from '@/hooks/useSignalData';
+import { Skeleton } from './ui/skeleton';
 
 interface SignalCardProps {
-  data: CryptoSignal;
+  name: string;
+  symbol: string;
+  price: number;
+  change24h: number;
 }
 
-const SignalCard: React.FC<SignalCardProps> = ({ data }) => {
-  const { name, symbol, price, change24h, signal } = data;
+const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h }) => {
+  const { data: signal, isLoading: isSignalLoading } = useSignalData(symbol);
 
-  const getSignalVariant = (): 'destructive' | 'secondary' | 'default' => {
-    if (signal === 'Sell') return 'destructive';
-    if (signal === 'Hold') return 'secondary';
+  const getSignalVariant = (currentSignal: Signal): 'destructive' | 'secondary' | 'default' => {
+    if (currentSignal === 'Sell') return 'destructive';
+    if (currentSignal === 'Hold') return 'secondary';
     return 'default';
   };
 
-  const getSignalText = (): string => {
-    if (signal === 'Buy') return 'Al';
-    if (signal === 'Sell') return 'Sat';
+  const getSignalText = (currentSignal: Signal): string => {
+    if (currentSignal === 'Buy') return 'Al';
+    if (currentSignal === 'Sell') return 'Sat';
     return 'Tut';
   }
 
@@ -47,12 +52,16 @@ const SignalCard: React.FC<SignalCardProps> = ({ data }) => {
         </div>
       </CardContent>
       <CardFooter>
-        <Badge 
-          variant={getSignalVariant()} 
-          className={`w-full justify-center py-2 text-md ${signal === 'Buy' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
-        >
-          {getSignalText()}
-        </Badge>
+        {isSignalLoading ? (
+          <Skeleton className="h-8 w-full" />
+        ) : (
+          <Badge 
+            variant={getSignalVariant(signal || 'Hold')} 
+            className={`w-full justify-center py-2 text-md ${signal === 'Buy' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
+          >
+            {getSignalText(signal || 'Hold')}
+          </Badge>
+        )}
       </CardFooter>
     </Card>
   );
