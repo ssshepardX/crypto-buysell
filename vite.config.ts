@@ -6,7 +6,7 @@ import path from "path";
 export default defineConfig(({ command }) => ({
   // GitHub Pages'de projenizin yayınlanacağı depo adını buraya yazın.
   // Örneğin, depo adı "kripto-sinyal-projem" ise, base: "/kripto-sinyal-projem/" olmalıdır.
-  base: command === 'build' ? '/your-repository-name/' : '/',
+  base: command === 'build' ? '/crypto-buysell/' : '/',
   server: {
     host: "::",
     port: 8080,
