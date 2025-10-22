@@ -14,12 +14,15 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// Sadece üretim ortamında (Vite'ın base ayarı varsa) basename kullan
+const basename = import.meta.env.BASE_URL === '/' ? undefined : import.meta.env.BASE_URL;
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter basename="/crypto-buysell">
+      <BrowserRouter basename={basename}>
         <SessionContextProvider>
           <Routes>
             <Route path="/" element={<Index />} />
