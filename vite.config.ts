@@ -3,8 +3,8 @@ import dyadComponentTagger from "@dyad-sh/react-vite-component-tagger";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
-export default defineConfig(({ command }) => ({
-  base: command === 'build' ? '/crypto-buysell/' : '/',
+export default defineConfig(() => ({
+  base: '/', // HashRouter kullanıldığı için base'i köke ayarlıyoruz
   server: {
     host: "::",
     port: 8080,
