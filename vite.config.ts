@@ -5,7 +5,7 @@ import path from "path";
 
 export default defineConfig(({ command }) => ({
   // LÜTFEN 'your-repository-name' KISMINI KENDİ GITHUB DEPO ADINIZLA DEĞİŞTİRİN!
-  base: command === 'build' ? '/your-repository-name/' : '/',
+  base: command === 'build' ? '/kripto-sinyal-app/' : '/',
   server: {
     host: "::",
     port: 8080,
