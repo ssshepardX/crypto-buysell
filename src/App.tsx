@@ -19,7 +19,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter basename="/crypto-buysell">
         <SessionContextProvider>
           <Routes>
             <Route path="/" element={<Index />} />
