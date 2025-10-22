@@ -14,6 +14,7 @@
           var decoded = l.search.slice(1).split('&').map(function(s) { 
             return s.replace(/~and~/g, '&')
           }).join('?');
+          // URL'yi temizle: /crypto-buysell/?/dashboard -> /crypto-buysell/dashboard
           window.history.replaceState(null, null,
               l.pathname.slice(0, -1) + decoded + l.hash
           );

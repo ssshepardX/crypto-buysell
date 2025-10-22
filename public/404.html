@@ -10,8 +10,8 @@
       var l = window.location;
       var path = l.pathname;
       
-      // Eğer yol zaten doğru formatta değilse (yani doğrudan bir alt yola gidiliyorsa)
-      if (path.indexOf('/crypto-buysell/') === 0 && path.indexOf('/?/') === -1) {
+      // Eğer yol /crypto-buysell/ ile başlıyorsa, URL'yi yeniden yaz
+      if (path.indexOf('/crypto-buysell/') === 0) {
         var newPath = '/crypto-buysell/?/' + path.substring('/crypto-buysell/'.length);
         
         l.replace(
@@ -21,8 +21,8 @@
           l.hash
         );
       } else {
-        // Varsayılan yönlendirme (eğer alt dizin adı değişirse veya kökteyse)
-        var pathSegmentsToKeep = 1;
+        // Kök dizin için varsayılan yönlendirme (genellikle gerekmez ama güvenlik için kalsın)
+        var pathSegmentsToKeep = 0; // Kök dizin için 0
         l.replace(
           l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
           l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
