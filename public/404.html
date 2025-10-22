@@ -4,18 +4,33 @@
     <meta charset="utf-8">
     <title>Single Page Apps for GitHub Pages</title>
     <script type="text/javascript">
-      // URL'deki segmentleri al
-      var pathSegmentsToKeep = 1;
-
+      // GitHub Pages'te alt dizin (subfolder) routing'i için özel yönlendirme.
+      // /crypto-buysell/dashboard -> /crypto-buysell/?/dashboard
+      
       var l = window.location;
-      l.replace(
-        l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-        l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
-        l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
-        (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
-        l.hash
-      );
-
+      var path = l.pathname;
+      
+      // Eğer yol zaten doğru formatta değilse (yani doğrudan bir alt yola gidiliyorsa)
+      if (path.indexOf('/crypto-buysell/') === 0 && path.indexOf('/?/') === -1) {
+        var newPath = '/crypto-buysell/?/' + path.substring('/crypto-buysell/'.length);
+        
+        l.replace(
+          l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+          newPath +
+          (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+          l.hash
+        );
+      } else {
+        // Varsayılan yönlendirme (eğer alt dizin adı değişirse veya kökteyse)
+        var pathSegmentsToKeep = 1;
+        l.replace(
+          l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+          l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
+          l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
+          (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+          l.hash
+        );
+      }
     </script>
   </head>
   <body>
