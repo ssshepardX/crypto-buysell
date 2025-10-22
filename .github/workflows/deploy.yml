@@ -3,7 +3,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main # Sadece 'main' dalına push yapıldığında çalışır
+      - main # 'main' dalına push yapıldığında çalışır
+      - master # 'master' dalına push yapıldığında da çalışır
 
 jobs:
   build-and-deploy:
