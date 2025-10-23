@@ -4,7 +4,8 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 export default defineConfig(() => ({
-  base: '/', // HashRouter kullanıldığı için base'i köke ayarlıyoruz
+  // GitHub Pages'te alt dizinde yayınlandığı için base path'i ayarlıyoruz.
+  base: '/crypto-buysell/', 
   server: {
     host: "::",
     port: 8080,

@@ -2,37 +2,14 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>Single Page Apps for GitHub Pages</title>
+    <title>Redirecting...</title>
     <script type="text/javascript">
-      // GitHub Pages'te alt dizin (subfolder) routing'i için özel yönlendirme.
-      // /crypto-buysell/dashboard -> /crypto-buysell/?/dashboard
-      
-      var l = window.location;
-      var path = l.pathname;
-      
-      // Eğer yol /crypto-buysell/ ile başlıyorsa, URL'yi yeniden yaz
-      if (path.indexOf('/crypto-buysell/') === 0) {
-        var newPath = '/crypto-buysell/?/' + path.substring('/crypto-buysell/'.length);
-        
-        l.replace(
-          l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-          newPath +
-          (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
-          l.hash
-        );
-      } else {
-        // Kök dizin için varsayılan yönlendirme (genellikle gerekmez ama güvenlik için kalsın)
-        var pathSegmentsToKeep = 0; // Kök dizin için 0
-        l.replace(
-          l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-          l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
-          l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
-          (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
-          l.hash
-        );
-      }
+      // Kullanıcıyı uygulamanın ana dizinine yönlendir.
+      // HashRouter buradan sonra yönlendirmeyi devralacaktır.
+      window.location.replace('/crypto-buysell/');
     </script>
   </head>
   <body>
+    <p>If you are not redirected automatically, follow this <a href="/crypto-buysell/">link to the homepage</a>.</p>
   </body>
 </html>
