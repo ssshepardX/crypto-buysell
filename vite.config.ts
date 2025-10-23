@@ -4,8 +4,9 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 export default defineConfig(() => ({
-  // Göreli yollar kullanmak, GitHub Pages alt dizin dağıtımları için daha sağlamdır.
-  base: './', 
+  // GitHub Pages'teki alt dizin yolunu mutlak olarak belirtiyoruz.
+  // Bu, varlıkların doğru yüklenmesini garanti altına alacaktır.
+  base: '/crypto-buysell/', 
   server: {
     host: "::",
     port: 8080,
