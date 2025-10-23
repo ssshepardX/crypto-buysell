@@ -14,16 +14,16 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-// HashRouter kullanıldığı için basename artık gerekli değil.
-// Ancak, BrowserRouter'dan HashRouter'a geçiş yapıyoruz.
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      {/* HashRouter, GitHub Pages'teki 404 sorununu kesin olarak çözer */}
-      <HashRouter>
+      {/* 
+        basename prop'u, router'a uygulamanın bir alt dizinde çalıştığını söyler.
+        Bu, özel domainli GitHub Pages dağıtımları için kritik öneme sahiptir.
+      */}
+      <HashRouter basename="/crypto-buysell">
         <SessionContextProvider>
           <Routes>
             <Route path="/" element={<Index />} />
