@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, HashRouter } from "react-router-dom";
+import { Routes, Route, HashRouter } from "react-router-dom";
 import { SessionContextProvider } from "./contexts/SessionContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
@@ -20,10 +20,11 @@ const App = () => (
       <Toaster />
       <Sonner />
       {/* 
-        basename prop'u, router'a uygulamanın bir alt dizinde çalıştığını söyler.
-        Bu, özel domainli GitHub Pages dağıtımları için kritik öneme sahiptir.
+        HashRouter, URL'nin '#' sembolünden sonraki kısmıyla ilgilendiği için
+        'basename' prop'una ihtiyaç duymaz. Dosya yolları zaten vite.config.ts
+        tarafından doğru şekilde ayarlanmıştır.
       */}
-      <HashRouter basename="/crypto-buysell">
+      <HashRouter>
         <SessionContextProvider>
           <Routes>
             <Route path="/" element={<Index />} />
