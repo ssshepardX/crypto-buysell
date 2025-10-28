@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Routes, Route, HashRouter } from "react-router-dom";
+import { Routes, Route, BrowserRouter } from "react-router-dom";
 import { SessionContextProvider } from "./contexts/SessionContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -20,7 +20,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        <HashRouter>
+        <BrowserRouter basename="/shepardsignals">
           <SessionContextProvider>
             <Routes>
               <Route path="/" element={<Index />} />
@@ -36,7 +36,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </SessionContextProvider>
-        </HashRouter>
+        </BrowserRouter>
       </ThemeProvider>
     </TooltipProvider>
   </QueryClientProvider>
