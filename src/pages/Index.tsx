@@ -36,7 +36,7 @@ const Index = () => {
         >
           <div className="container mx-auto grid md:grid-cols-3 gap-8 text-center">
             {[
-              { icon: <TrendingUp />, title: "82% Success Rate", description: "Proven success rate of our signals based on the last 12 months of backtesting data." },
+              { icon: <TrendingUp />, title: "High Win Rate", description: "Our AI strategy is continuously tested to identify high-probability trading opportunities." },
               { icon: <ShieldCheck />, title: "Reliable Analysis", description: "We generate the most reliable signals using multiple indicators and market sentiment analysis." },
               { icon: <Zap />, title: "Instant Notifications", description: "Get notified instantly when a buy or sell opportunity arises, never miss a chance." }
             ].map((feature, index) => (
