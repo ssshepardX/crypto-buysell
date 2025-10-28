@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import SignalCard from './SignalCard';
-import { useBinanceData, fetchBinanceKlines } from '@/hooks/useBinanceData';
+import { useBinanceData } from '@/hooks/useBinanceData';
 import { Skeleton } from './ui/skeleton';
 import { useFavorites } from '@/hooks/useFavorites';
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { RSI, EMA } from 'technicalindicators';
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useSignalData } from '@/hooks/useSignalData';
 
 const COIN_NAME_MAP = new Map([
   ['BTC', 'Bitcoin'], ['ETH', 'Ethereum'], ['SOL', 'Solana'], ['XRP', 'XRP'], ['DOGE', 'Dogecoin'],
@@ -25,68 +26,34 @@ const SignalList = () => {
   const { data: liveData, isLoading: isLiveLoading } = useBinanceData();
   const { favorites, toggleFavorite, isLoading: areFavoritesLoading } = useFavorites();
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [potentialBuys, setPotentialBuys] = useState<any[]>([]);
-  const [isScanning, setIsScanning] = useState(true);
+  const [signalFilter, setSignalFilter] = useState('all');
 
-  useEffect(() => {
-    const performScan = async () => {
-      if (!liveData || liveData.length === 0) return;
-
-      setIsScanning(true);
-      
-      const topCoinsByVolume = liveData
-        .filter(t => COIN_NAME_MAP.has(t.symbol.replace('USDT', '')))
-        .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
-        .slice(0, 150); // Pazarın daha geniş bir kısmını tara
-
-      const klinesPromises = topCoinsByVolume.map(coin => fetchBinanceKlines(coin.symbol));
-      const klinesResults = await Promise.all(klinesPromises);
-
-      const candidates = [];
-      for (let i = 0; i < topCoinsByVolume.length; i++) {
-        const coin = topCoinsByVolume[i];
-        const klines = klinesResults[i];
-
-        if (klines.length < 21) continue; // Analiz için yeterli veri yok
-
-        const closePrices = klines.map(k => parseFloat(k[4]));
-        
-        // Teknik Analiz Ön Filtresi
-        const lastRSI = RSI.calculate({ period: 14, values: closePrices }).pop();
-        const ema9 = EMA.calculate({ period: 9, values: closePrices }).pop();
-        const ema21 = EMA.calculate({ period: 21, values: closePrices }).pop();
-
-        // Alım Sinyali Koşulları:
-        // 1. RSI 45'in altında (aşırı alımda değil, yükseliş potansiyeli var)
-        // 2. Kısa vadeli EMA, uzun vadeli EMA'yı yukarı kesmiş veya çok yakın (yükseliş trendi başlangıcı)
-        if (lastRSI && ema9 && ema21 && lastRSI < 45 && ema9 > ema21) {
-          candidates.push({
-            ...coin,
-            symbol: coin.symbol.replace('USDT', ''),
-            name: COIN_NAME_MAP.get(coin.symbol.replace('USDT', '')) || coin.symbol.replace('USDT', ''),
-          });
-        }
-      }
-      
-      setPotentialBuys(candidates);
-      setIsScanning(false);
-    };
-
-    performScan();
+  const top200Coins = useMemo(() => {
+    if (!liveData) return [];
+    return liveData
+      .filter(t => COIN_NAME_MAP.has(t.symbol.replace('USDT', '')))
+      .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
+      .slice(0, 200)
+      .map(coin => ({
+        ...coin,
+        symbol: coin.symbol.replace('USDT', ''),
+        name: COIN_NAME_MAP.get(coin.symbol.replace('USDT', '')) || coin.symbol.replace('USDT', ''),
+      }));
   }, [liveData]);
 
-  const displayedCoins = showFavoritesOnly
-    ? potentialBuys.filter(coin => favorites.includes(coin.symbol))
-    : potentialBuys;
+  const filteredCoins = useMemo(() => {
+    return showFavoritesOnly
+      ? top200Coins.filter(coin => favorites.includes(coin.symbol))
+      : top200Coins;
+  }, [top200Coins, showFavoritesOnly, favorites]);
 
-  const isLoading = isLiveLoading || areFavoritesLoading || isScanning;
+  const isLoading = isLiveLoading || areFavoritesLoading;
 
   if (isLoading) {
     return (
       <div>
-        <p className="text-center text-muted-foreground mb-4">Scanning market for potential buy signals...</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 9 }).map((_, i) => (
             <Skeleton key={i} className="h-[280px] w-full" />
           ))}
         </div>
@@ -96,37 +63,59 @@ const SignalList = () => {
 
   return (
     <div>
-      <div className="flex items-center space-x-2 mb-6">
-        <Switch
-          id="favorites-only"
-          checked={showFavoritesOnly}
-          onCheckedChange={setShowFavoritesOnly}
-        />
-        <Label htmlFor="favorites-only">Show Favorites Only ({favorites.length})</Label>
-      </div>
-      {displayedCoins.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {displayedCoins.map((coin) => (
-            <SignalCard 
-              key={coin.symbol} 
-              name={coin.name}
-              symbol={coin.symbol}
-              price={parseFloat(coin.lastPrice)}
-              change24h={parseFloat(coin.priceChangePercent)}
-              isFavorite={favorites.includes(coin.symbol)}
-              onToggleFavorite={toggleFavorite}
-            />
-          ))}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="favorites-only"
+            checked={showFavoritesOnly}
+            onCheckedChange={setShowFavoritesOnly}
+          />
+          <Label htmlFor="favorites-only">Show Favorites Only ({favorites.length})</Label>
         </div>
-      ) : (
-         <p className="col-span-full text-center text-muted-foreground py-10">
-           {showFavoritesOnly 
-             ? "No potential buy signals found in your favorites right now."
-             : "No strong buy signals detected in the current market scan. The market might be consolidating."
-           }
-         </p>
-      )}
+        <ToggleGroup type="single" value={signalFilter} onValueChange={(value) => value && setSignalFilter(value)} defaultValue="all">
+          <ToggleGroupItem value="all">All</ToggleGroupItem>
+          <ToggleGroupItem value="Buy" className="text-green-500">Buy</ToggleGroupItem>
+          <ToggleGroupItem value="Sell" className="text-red-500">Sell</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredCoins.map((coin) => (
+          <SignalCardWrapper 
+            key={coin.symbol}
+            coin={coin}
+            isFavorite={favorites.includes(coin.symbol)}
+            onToggleFavorite={toggleFavorite}
+            signalFilter={signalFilter}
+          />
+        ))}
+      </div>
     </div>
+  );
+};
+
+// Wrapper to fetch signal for each card and apply filter
+const SignalCardWrapper = ({ coin, isFavorite, onToggleFavorite, signalFilter }) => {
+  const { data: signalData, isLoading } = useSignalData(coin.symbol);
+
+  if (isLoading) {
+    return <Skeleton className="h-[280px] w-full" />;
+  }
+
+  if (signalFilter !== 'all' && signalData?.signal !== signalFilter) {
+    return null;
+  }
+
+  return (
+    <SignalCard 
+      name={coin.name}
+      symbol={coin.symbol}
+      price={parseFloat(coin.lastPrice)}
+      change24h={parseFloat(coin.priceChangePercent)}
+      isFavorite={isFavorite}
+      onToggleFavorite={onToggleFavorite}
+      signalData={signalData}
+    />
   );
 };
 

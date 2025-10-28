@@ -3,8 +3,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Signal } from '@/types/crypto';
-import { ArrowUpRight, ArrowDownRight, Target, Star, Sparkles } from 'lucide-react';
-import { useSignalData, RiskLevel } from '@/hooks/useSignalData';
+import { ArrowUpRight, ArrowDownRight, Star, Sparkles } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -15,38 +14,18 @@ interface SignalCardProps {
   change24h: number;
   isFavorite: boolean;
   onToggleFavorite: (symbol: string) => void;
+  signalData: { signal: Signal; reasoning: string } | undefined;
 }
 
-const RiskBadge: React.FC<{ risk: RiskLevel }> = ({ risk }) => {
-  const riskVariants = {
-    Low: 'bg-green-500/20 text-green-400 border-green-500/30',
-    Moderate: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-    High: 'bg-red-500/20 text-red-400 border-red-500/30',
+const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h, isFavorite, onToggleFavorite, signalData }) => {
+  const signal = signalData?.signal || 'Hold';
+  const reasoning = signalData?.reasoning || 'Loading analysis...';
+
+  const getSignalClasses = (currentSignal: Signal): string => {
+    if (currentSignal === 'Buy') return 'bg-green-600 hover:bg-green-700 text-white';
+    if (currentSignal === 'Sell') return 'bg-red-600 hover:bg-red-700 text-white';
+    return 'bg-gray-500 hover:bg-gray-600 text-white';
   };
-  return <Badge variant="outline" className={cn("absolute top-4 right-12", riskVariants[risk])}>{risk}</Badge>;
-};
-
-const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h, isFavorite, onToggleFavorite }) => {
-  const { data, isLoading: isSignalLoading } = useSignalData(symbol);
-  
-  const signal = data?.signal || 'Hold';
-  const reasoning = data?.reasoning || 'Loading analysis...';
-  const risk = data?.risk;
-  const tp1 = data?.tp1;
-  const tp2 = data?.tp2;
-  const tp3 = data?.tp3;
-
-  const getSignalVariant = (currentSignal: Signal): 'destructive' | 'secondary' | 'default' => {
-    if (currentSignal === 'Sell') return 'destructive';
-    if (currentSignal === 'Hold') return 'secondary';
-    return 'default';
-  };
-
-  const getSignalText = (currentSignal: Signal): string => {
-    if (currentSignal === 'Buy') return 'Buy';
-    if (currentSignal === 'Sell') return 'Sell';
-    return 'Hold';
-  }
 
   const isPositiveChange = change24h >= 0;
 
@@ -59,7 +38,6 @@ const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h,
         )}
         onClick={() => onToggleFavorite(symbol)}
       />
-      {risk && <RiskBadge risk={risk} />}
       <div>
         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
           <div className="flex items-center space-x-4">
@@ -79,39 +57,20 @@ const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h,
             <span>{change24h.toFixed(2)}% (24h)</span>
           </div>
           
-          <div className="mt-4 text-sm text-muted-foreground flex items-start space-x-2">
+          <div className="mt-4 text-sm text-muted-foreground flex items-start space-x-2 h-12">
             <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0 text-purple-400" />
-            {isSignalLoading ? <Skeleton className="h-8 w-full" /> : <p>{reasoning}</p>}
+            <p>{reasoning}</p>
           </div>
-
-          {signal === 'Buy' && tp1 && (
-            <div className="mt-4 space-y-2 text-sm">
-              <h4 className="font-semibold flex items-center"><Target className="h-4 w-4 mr-2"/>Take Profit Levels</h4>
-              <div className="flex justify-between items-center bg-secondary p-2 rounded-md">
-                <span className="text-muted-foreground">TP1:</span>
-                <span className="font-mono font-semibold">${tp1.toLocaleString()}</span>
-              </div>
-              {tp2 && <div className="flex justify-between items-center bg-secondary p-2 rounded-md">
-                <span className="text-muted-foreground">TP2:</span>
-                <span className="font-mono font-semibold">${tp2.toLocaleString()}</span>
-              </div>}
-              {tp3 && <div className="flex justify-between items-center bg-secondary p-2 rounded-md">
-                <span className="text-muted-foreground">TP3:</span>
-                <span className="font-mono font-semibold">${tp3.toLocaleString()}</span>
-              </div>}
-            </div>
-          )}
         </CardContent>
       </div>
       <CardFooter>
-        {isSignalLoading ? (
+        {!signalData ? (
           <Skeleton className="h-8 w-full" />
         ) : (
           <Badge 
-            variant={getSignalVariant(signal)} 
-            className={`w-full justify-center py-2 text-md ${signal === 'Buy' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
+            className={cn('w-full justify-center py-2 text-md', getSignalClasses(signal))}
           >
-            {getSignalText(signal)}
+            {signal}
           </Badge>
         )}
       </CardFooter>
