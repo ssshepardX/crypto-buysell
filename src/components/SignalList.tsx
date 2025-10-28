@@ -5,8 +5,8 @@ import { Skeleton } from './ui/skeleton';
 import { useFavorites } from '@/hooks/useFavorites';
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useSignalData } from '@/hooks/useSignalData';
+import { useOpenPositions } from '@/hooks/useOpenPositions';
 
 const COIN_NAME_MAP = new Map([
   ['BTC', 'Bitcoin'], ['ETH', 'Ethereum'], ['SOL', 'Solana'], ['XRP', 'XRP'], ['DOGE', 'Dogecoin'],
@@ -26,7 +26,6 @@ const SignalList = () => {
   const { data: liveData, isLoading: isLiveLoading } = useBinanceData();
   const { favorites, toggleFavorite, isLoading: areFavoritesLoading } = useFavorites();
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [signalFilter, setSignalFilter] = useState('all');
 
   const top200Coins = useMemo(() => {
     if (!liveData) return [];
@@ -72,11 +71,6 @@ const SignalList = () => {
           />
           <Label htmlFor="favorites-only">Show Favorites Only ({favorites.length})</Label>
         </div>
-        <ToggleGroup type="single" value={signalFilter} onValueChange={(value) => value && setSignalFilter(value)} defaultValue="all">
-          <ToggleGroupItem value="all">All</ToggleGroupItem>
-          <ToggleGroupItem value="Buy" className="text-green-500">Buy</ToggleGroupItem>
-          <ToggleGroupItem value="Sell" className="text-red-500">Sell</ToggleGroupItem>
-        </ToggleGroup>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -86,7 +80,6 @@ const SignalList = () => {
             coin={coin}
             isFavorite={favorites.includes(coin.symbol)}
             onToggleFavorite={toggleFavorite}
-            signalFilter={signalFilter}
           />
         ))}
       </div>
@@ -95,14 +88,34 @@ const SignalList = () => {
 };
 
 // Wrapper to fetch signal for each card and apply filter
-const SignalCardWrapper = ({ coin, isFavorite, onToggleFavorite, signalFilter }) => {
-  const { data: signalData, isLoading } = useSignalData(coin.symbol);
+const SignalCardWrapper = ({ coin, isFavorite, onToggleFavorite }) => {
+  const { data: signalData, isLoading: isSignalLoading } = useSignalData(coin.symbol);
+  const { data: openPositions = [], isLoading: isOpenPositionsLoading } = useOpenPositions();
+
+  const isLoading = isSignalLoading || isOpenPositionsLoading;
 
   if (isLoading) {
     return <Skeleton className="h-[280px] w-full" />;
   }
 
-  if (signalFilter !== 'all' && signalData?.signal !== signalFilter) {
+  const shouldShowCard = () => {
+    if (!signalData) return false;
+    
+    // Show all "Buy" signals
+    if (signalData.signal === 'Buy') {
+      return true;
+    }
+    
+    // Only show "Sell" signals if there's an open position for that symbol
+    if (signalData.signal === 'Sell' && openPositions.includes(coin.symbol)) {
+      return true;
+    }
+
+    // Don't show "Hold" or other signals
+    return false;
+  };
+
+  if (!shouldShowCard()) {
     return null;
   }
 

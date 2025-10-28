@@ -4,6 +4,7 @@ import { useSession } from "@/contexts/SessionContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import WinRateTracker from "@/components/WinRateTracker";
 import SignalHistory from "@/components/SignalHistory";
+import TrendingCoins from "@/components/TrendingCoins";
 
 const Dashboard = () => {
   const { session, loading } = useSession();
@@ -43,7 +44,12 @@ const Dashboard = () => {
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold mb-4">Active Signals & Market Scan</h2>
+          <h2 className="text-2xl font-semibold mb-4">Trending Coins</h2>
+          <TrendingCoins />
+        </section>
+
+        <section>
+          <h2 className="text-2xl font-semibold mb-4">Active AI Signals</h2>
           <SignalList />
         </section>
 
