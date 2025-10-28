@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
-import { EMA, RSI, BollingerBands } from "https://deno.land/x/technicalindicators@v1.0.0/mod.ts";
+import { EMA, RSI, BollingerBands } from "https://esm.sh/technicalindicators@3.1.0";
 import { GoogleGenerativeAI } from "npm:@google/generative-ai";
 
 const corsHeaders = {
