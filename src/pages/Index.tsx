@@ -37,7 +37,7 @@ const Index = () => {
           <div className="container mx-auto grid md:grid-cols-3 gap-8 text-center">
             {[
               { icon: <TrendingUp />, title: "High Win Rate", description: "Our AI strategy is developed for a high win rate, identifying the most promising trading opportunities." },
-              { icon: <ShieldCheck />, title: "Reliable Analysis", description: "We generate the most reliable signals using multiple indicators and market sentiment analysis." },
+              { icon: <ShieldCheck />, title: "Real-Time Analysis", description: "Our system processes market data in real-time to generate the most reliable signals." },
               { icon: <Zap />, title: "Timely Alerts", description: "Receive timely alerts on potential market moves, so you're always prepared." }
             ].map((feature, index) => (
               <Card 
