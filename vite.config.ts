@@ -4,9 +4,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 export default defineConfig(() => ({
-  // Uygulamanın sunucudaki alt dizin yolunu belirtiyoruz.
-  // Bu, varlıkların doğru yüklenmesini garanti altına alacaktır.
-  base: '/shepardsignals/', 
+  base: '/', 
   server: {
     host: "::",
     port: 8080,

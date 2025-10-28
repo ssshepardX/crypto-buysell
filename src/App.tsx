@@ -20,7 +20,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        <BrowserRouter basename="/shepardsignals">
+        <BrowserRouter>
           <SessionContextProvider>
             <Routes>
               <Route path="/" element={<Index />} />
