@@ -7,6 +7,7 @@ export interface BinanceTicker {
   highPrice: string;
   lowPrice: string;
   volume: string;
+  quoteVolume: string; // Added for sorting by trading volume
 }
 
 const fetchBinanceData = async (): Promise<BinanceTicker[]> => {

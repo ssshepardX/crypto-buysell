@@ -3,10 +3,9 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Signal } from '@/types/crypto';
-import { ArrowUpRight, ArrowDownRight, Info, Target, Star } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Target, Star, Sparkles } from 'lucide-react';
 import { useSignalData, RiskLevel } from '@/hooks/useSignalData';
 import { Skeleton } from './ui/skeleton';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 interface SignalCardProps {
@@ -72,16 +71,6 @@ const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h,
               <p className="text-sm text-muted-foreground">{symbol}</p>
             </div>
           </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="h-4 w-4 text-muted-foreground cursor-help flex-shrink-0" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="max-w-xs">{reasoning}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: price > 1 ? 2 : 8 })}</div>
@@ -89,6 +78,12 @@ const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h,
             {isPositiveChange ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
             <span>{change24h.toFixed(2)}% (24h)</span>
           </div>
+          
+          <div className="mt-4 text-sm text-muted-foreground flex items-start space-x-2">
+            <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0 text-purple-400" />
+            {isSignalLoading ? <Skeleton className="h-8 w-full" /> : <p>{reasoning}</p>}
+          </div>
+
           {signal === 'Buy' && tp1 && (
             <div className="mt-4 space-y-2 text-sm">
               <h4 className="font-semibold flex items-center"><Target className="h-4 w-4 mr-2"/>Take Profit Levels</h4>
