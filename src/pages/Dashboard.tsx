@@ -2,8 +2,9 @@ import Navbar from "@/components/Navbar";
 import SignalList from "@/components/SignalList";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { useSession } from "@/contexts/SessionContext";
-import PricingTiers from "@/components/PricingTiers";
 import { Skeleton } from "@/components/ui/skeleton";
+import WinRateTracker from "@/components/WinRateTracker";
+import SignalHistory from "@/components/SignalHistory";
 
 const Dashboard = () => {
   const { session, loading } = useSession();
@@ -27,20 +28,31 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="flex-grow container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">
-          Welcome, {session?.user?.email}
-        </h1>
+      <main className="flex-grow container mx-auto px-4 py-8 space-y-12">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">
+            Welcome, {session?.user?.email}
+          </h1>
+          <p className="text-muted-foreground">
+            Here's the latest analysis from our AI engine.
+          </p>
+        </div>
         
-        <section className="mb-16">
-          <h2 className="text-2xl font-semibold mb-6 border-b pb-2">Signals</h2>
+        <section>
+          <h2 className="text-2xl font-semibold mb-4">System Performance</h2>
+          <WinRateTracker />
+        </section>
+
+        <section>
+          <h2 className="text-2xl font-semibold mb-4">Active Signals</h2>
           <SignalList />
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold mb-6 border-b pb-2">Upgrade Your Plan</h2>
-          <PricingTiers />
+          <h2 className="text-2xl font-semibold mb-4">Trade History</h2>
+          <SignalHistory />
         </section>
+
       </main>
       <MadeWithDyad />
     </div>
