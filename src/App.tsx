@@ -9,7 +9,6 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Pricing from "./pages/Pricing";
 import ConfirmEmail from "./pages/ConfirmEmail";
 import NotFound from "./pages/NotFound";
 
@@ -26,7 +25,6 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
-              <Route path="/pricing" element={<Pricing />} />
               <Route path="/confirm-email" element={<ConfirmEmail />} />
               
               {/* Protected Routes */}

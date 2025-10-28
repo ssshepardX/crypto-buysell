@@ -20,9 +20,6 @@ const Navbar = () => {
           CryptoSignals
         </Link>
         <nav className="flex items-center space-x-4">
-          <Link to="/pricing">
-            <Button variant="ghost">Pricing</Button>
-          </Link>
           {session ? (
             <>
               <Link to="/dashboard">

@@ -1,6 +1,5 @@
 import React from 'react';
 import SignalCard from './SignalCard';
-import LockedSignalCard from './LockedSignalCard';
 import { useBinanceData } from '@/hooks/useBinanceData';
 import { Skeleton } from './ui/skeleton';
 
@@ -13,8 +12,6 @@ const COIN_LIST = [
   { symbol: 'PEPE', name: 'Pepe' },
   { symbol: 'ADA', name: 'Cardano' },
 ];
-
-const FREE_TIER_LIMIT = 3; // Ücretsiz planda gösterilecek sinyal sayısı
 
 const SignalList = () => {
   const { data: liveData, isLoading: isLiveLoading } = useBinanceData();
@@ -31,13 +28,7 @@ const SignalList = () => {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {COIN_LIST.map((coin, index) => {
-        // Ücretsiz plan sınırını kontrol et
-        if (index >= FREE_TIER_LIMIT) {
-          return <LockedSignalCard key={coin.symbol} name={coin.name} symbol={coin.symbol} />;
-        }
-
-        // Ücretsiz sinyaller için canlı veriyi bul ve kartı oluştur
+      {COIN_LIST.map((coin) => {
         const ticker = liveData?.find(d => d.symbol === `${coin.symbol}USDT`);
         if (!ticker) {
           // Veri bulunamazsa bir iskelet göster
