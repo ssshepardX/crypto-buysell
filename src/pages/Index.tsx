@@ -29,7 +29,7 @@ const Index = () => {
         {/* Live Price Ticker */}
         <LivePriceTicker />
 
-        {/* Backtest/Features Section */}
+        {/* Features Section */}
         <section 
           className="bg-black bg-opacity-20 py-20 animate-fade-in-up"
           style={{ animationDelay: '0.2s' }}
@@ -38,7 +38,7 @@ const Index = () => {
             {[
               { icon: <TrendingUp />, title: "High Win Rate", description: "Our AI strategy is developed for a high win rate, identifying the most promising trading opportunities." },
               { icon: <ShieldCheck />, title: "Reliable Analysis", description: "We generate the most reliable signals using multiple indicators and market sentiment analysis." },
-              { icon: <Zap />, title: "Instant Notifications", description: "Get notified instantly when a buy or sell opportunity arises, never miss a chance." }
+              { icon: <Zap />, title: "Timely Alerts", description: "Receive timely alerts on potential market moves, so you're always prepared." }
             ].map((feature, index) => (
               <Card 
                 key={index} 
