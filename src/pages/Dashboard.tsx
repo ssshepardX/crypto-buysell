@@ -33,7 +33,7 @@ const Dashboard = () => {
         </h1>
         
         <section className="mb-16">
-          <h2 className="text-2xl font-semibold mb-6 border-b pb-2">Sinyalleriniz</h2>
+          <h2 className="text-2xl font-semibold mb-6 border-b pb-2">Sinyaller</h2>
           <SignalList />
         </section>
 
