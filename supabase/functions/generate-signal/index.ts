@@ -91,10 +91,12 @@ async function analyzeForBuy(symbol: string, price: number, prices: number[]) {
     - Bollinger Bands (Upper/Lower): ${analysis.bollingerBands.upper.toFixed(4)} / ${analysis.bollingerBands.lower.toFixed(4)}
 
     Based on this data, is this a strong 'Buy' opportunity or should we 'Hold' and wait?
-    If you signal 'Buy', you MUST provide three realistic take-profit levels (tp1, tp2, tp3) based on technical resistance, Fibonacci levels, or volatility.
-    
+    If you signal 'Buy', you MUST provide:
+    1. Three realistic take-profit levels (tp1, tp2, tp3) based on technical resistance or volatility.
+    2. A risk assessment for this trade ('Low', 'Moderate', or 'High').
+
     Return your response ONLY as a valid JSON object.
-    For "Buy": { "signal": "Buy", "reasoning": "...", "tp1": ..., "tp2": ..., "tp3": ... }
+    For "Buy": { "signal": "Buy", "reasoning": "...", "tp1": ..., "tp2": ..., "tp3": ..., "risk": "Low" | "Moderate" | "High" }
     For "Hold": { "signal": "Hold", "reasoning": "..." }
   `;
 
@@ -110,9 +112,10 @@ async function analyzeForBuy(symbol: string, price: number, prices: number[]) {
       tp1: aiResponse.tp1,
       tp2: aiResponse.tp2,
       tp3: aiResponse.tp3,
+      risk: aiResponse.risk, // Assuming the table is updated to include 'risk'
     }).select().single();
     if (error) throw error;
-    return data;
+    return { ...data, risk: aiResponse.risk }; // Return risk in the response
   }
   return aiResponse;
 }

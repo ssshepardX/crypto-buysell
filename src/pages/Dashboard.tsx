@@ -44,7 +44,7 @@ const Dashboard = () => {
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold mb-4">Active Signals</h2>
+          <h2 className="text-2xl font-semibold mb-4">Active Signals & Market Scan</h2>
           <SignalList />
         </section>
 
