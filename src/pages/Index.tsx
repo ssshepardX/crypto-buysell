@@ -1,7 +1,6 @@
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Link } from "react-router-dom";
 import { TrendingUp, ShieldCheck, Zap } from "lucide-react";
 import LivePriceTicker from "@/components/LivePriceTicker";
@@ -73,7 +72,6 @@ const Index = () => {
         </section>
 
       </main>
-      <MadeWithDyad />
     </div>
   );
 };

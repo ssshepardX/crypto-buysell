@@ -16,8 +16,8 @@ const Navbar = () => {
   return (
     <header className="w-full p-4 border-b">
       <div className="container mx-auto flex justify-between items-center">
-        <Link to="/" className="text-2xl font-bold">
-          CryptoSignals
+        <Link to="/" className="flex items-center space-x-2">
+          <img src="/logo.png" alt="Shepard Signals Logo" className="h-10" />
         </Link>
         <nav className="flex items-center space-x-4">
           {session ? (

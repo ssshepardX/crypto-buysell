@@ -1,6 +1,5 @@
 import Navbar from "@/components/Navbar";
 import SignalList from "@/components/SignalList";
-import { MadeWithDyad } from "@/components/made-with-dyad";
 import { useSession } from "@/contexts/SessionContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import WinRateTracker from "@/components/WinRateTracker";
@@ -54,7 +53,6 @@ const Dashboard = () => {
         </section>
 
       </main>
-      <MadeWithDyad />
     </div>
   );
 };
