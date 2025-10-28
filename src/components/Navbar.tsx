@@ -21,22 +21,22 @@ const Navbar = () => {
         </Link>
         <nav className="flex items-center space-x-4">
           <Link to="/pricing">
-            <Button variant="ghost">Fiyatlandırma</Button>
+            <Button variant="ghost">Pricing</Button>
           </Link>
           {session ? (
             <>
               <Link to="/dashboard">
                 <Button variant="ghost">Dashboard</Button>
               </Link>
-              <Button onClick={handleLogout}>Çıkış Yap</Button>
+              <Button onClick={handleLogout}>Logout</Button>
             </>
           ) : (
             <>
               <Link to="/login">
-                <Button variant="ghost">Giriş Yap</Button>
+                <Button variant="ghost">Login</Button>
               </Link>
               <Link to="/login">
-                <Button>Kayıt Ol</Button>
+                <Button>Sign Up</Button>
               </Link>
             </>
           )}

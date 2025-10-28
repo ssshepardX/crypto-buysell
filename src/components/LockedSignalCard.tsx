@@ -15,9 +15,9 @@ const LockedSignalCard: React.FC<LockedSignalCardProps> = ({ name, symbol }) => 
     <Card className="relative overflow-hidden border-dashed">
       <div className="absolute inset-0 bg-background/70 backdrop-blur-sm z-10 flex flex-col items-center justify-center p-4 text-center">
         <Lock className="h-8 w-8 text-primary mb-3" />
-        <p className="font-semibold mb-3">Bu sinyali görmek için Profesyonel plana geçin.</p>
+        <p className="font-semibold mb-3">Upgrade to the Scalper plan to see this signal.</p>
         <Link to="/pricing">
-          <Button size="sm">Planları Görüntüle</Button>
+          <Button size="sm">View Plans</Button>
         </Link>
       </div>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -34,7 +34,7 @@ const LockedSignalCard: React.FC<LockedSignalCardProps> = ({ name, symbol }) => 
       <CardContent>
         <div className="text-2xl font-bold text-muted-foreground/50">$----.--</div>
         <div className="flex items-center text-sm text-muted-foreground/50">
-          <span>--.--% (24s)</span>
+          <span>--.--% (24h)</span>
         </div>
       </CardContent>
     </Card>

@@ -24,9 +24,9 @@ const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h 
   };
 
   const getSignalText = (currentSignal: Signal): string => {
-    if (currentSignal === 'Buy') return 'Al';
-    if (currentSignal === 'Sell') return 'Sat';
-    return 'Tut';
+    if (currentSignal === 'Buy') return 'Buy';
+    if (currentSignal === 'Sell') return 'Sell';
+    return 'Hold';
   }
 
   const isPositiveChange = change24h >= 0;
@@ -48,7 +48,7 @@ const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h 
         <div className="text-2xl font-bold">${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: price > 1 ? 2 : 8 })}</div>
         <div className={`flex items-center text-sm ${isPositiveChange ? 'text-green-500' : 'text-red-500'}`}>
           {isPositiveChange ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-          <span>{change24h.toFixed(2)}% (24s)</span>
+          <span>{change24h.toFixed(2)}% (24h)</span>
         </div>
       </CardContent>
       <CardFooter>

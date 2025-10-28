@@ -33,30 +33,6 @@ const Login = () => {
           appearance={{ theme: ThemeSupa }}
           providers={[]}
           theme="dark"
-          localization={{
-            variables: {
-              sign_up: {
-                email_label: 'E-posta adresi',
-                password_label: 'Şifre oluştur',
-                button_label: 'Kayıt Ol',
-                social_provider_text: '{{provider}} ile giriş yap',
-                link_text: 'Hesabın yok mu? Kayıt Ol',
-              },
-              sign_in: {
-                email_label: 'E-posta adresi',
-                password_label: 'Şifreniz',
-                button_label: 'Giriş Yap',
-                social_provider_text: '{{provider}} ile giriş yap',
-                link_text: 'Zaten bir hesabın var mı? Giriş Yap',
-              },
-              forgotten_password: {
-                email_label: 'E-posta adresi',
-                password_label: 'Şifreniz',
-                button_label: 'Şifre sıfırlama linki gönder',
-                link_text: 'Şifreni mi unuttun?',
-              },
-            },
-          }}
         />
       </div>
     </div>

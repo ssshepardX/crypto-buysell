@@ -15,14 +15,14 @@ const Index = () => {
         {/* Hero Section */}
         <section className="container mx-auto text-center pt-20 pb-12 lg:pt-32 lg:pb-20 animate-fade-in-up">
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4 text-foreground dark:bg-gradient-to-r dark:from-cyan-400 dark:to-purple-500 dark:text-transparent dark:bg-clip-text">
-            Yapay Zeka Destekli Kripto Sinyalleriyle Kazancınızı Artırın
+            Boost Your Profits with AI-Powered Crypto Signals
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
-            Piyasa analizini bize bırakın, siz doğru zamanda doğru hamleleri yapın. Gelişmiş algoritmalarımızla yatırım stratejinizi güçlendirin.
+            Let us handle the market analysis while you make the right moves at the right time. Power your investment strategy with our advanced algorithms.
           </p>
           <Link to="/login">
             <Button size="lg" className="transition-all hover:shadow-[0_0_20px_theme(colors.cyan.500)]">
-              Ücretsiz Başla
+              Get Started for Free
             </Button>
           </Link>
         </section>
@@ -37,9 +37,9 @@ const Index = () => {
         >
           <div className="container mx-auto grid md:grid-cols-3 gap-8 text-center">
             {[
-              { icon: <TrendingUp />, title: "%82 Başarı Oranı", description: "Geçmiş 12 aylık backtest verilerine göre sinyallerimizin kanıtlanmış başarı oranı." },
-              { icon: <ShieldCheck />, title: "Güvenilir Analiz", description: "Birden fazla indikatör ve piyasa duyarlılığı analizi ile en güvenilir sinyalleri üretiriz." },
-              { icon: <Zap />, title: "Anlık Bildirimler", description: "Alım veya satım fırsatı doğduğunda anında haberdar olun, hiçbir fırsatı kaçırmayın." }
+              { icon: <TrendingUp />, title: "82% Success Rate", description: "Proven success rate of our signals based on the last 12 months of backtesting data." },
+              { icon: <ShieldCheck />, title: "Reliable Analysis", description: "We generate the most reliable signals using multiple indicators and market sentiment analysis." },
+              { icon: <Zap />, title: "Instant Notifications", description: "Get notified instantly when a buy or sell opportunity arises, never miss a chance." }
             ].map((feature, index) => (
               <Card 
                 key={index} 
@@ -67,7 +67,7 @@ const Index = () => {
           style={{ animationDelay: '0.4s' }}
         >
           <div className="container mx-auto">
-            <h2 className="text-3xl font-bold text-center mb-10">Trenddeki Coinler</h2>
+            <h2 className="text-3xl font-bold text-center mb-10">Trending Coins</h2>
             <TrendingCoins />
           </div>
         </section>

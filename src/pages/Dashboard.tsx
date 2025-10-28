@@ -29,16 +29,16 @@ const Dashboard = () => {
       <Navbar />
       <main className="flex-grow container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">
-          Hoş geldiniz, {session?.user?.email}
+          Welcome, {session?.user?.email}
         </h1>
         
         <section className="mb-16">
-          <h2 className="text-2xl font-semibold mb-6 border-b pb-2">Sinyaller</h2>
+          <h2 className="text-2xl font-semibold mb-6 border-b pb-2">Signals</h2>
           <SignalList />
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold mb-6 border-b pb-2">Planınızı Yükseltin</h2>
+          <h2 className="text-2xl font-semibold mb-6 border-b pb-2">Upgrade Your Plan</h2>
           <PricingTiers />
         </section>
       </main>
