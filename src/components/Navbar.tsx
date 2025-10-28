@@ -1,8 +1,8 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Globe } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 import { supabase } from "@/integrations/supabase/client";
+import { ThemeToggle } from "./ThemeToggle";
 
 const Navbar = () => {
   const { session } = useSession();
@@ -40,9 +40,7 @@ const Navbar = () => {
               </Link>
             </>
           )}
-          <Button variant="outline" size="icon">
-            <Globe className="h-4 w-4" />
-          </Button>
+          <ThemeToggle />
         </nav>
       </div>
     </header>
