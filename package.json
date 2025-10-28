@@ -10,6 +10,12 @@
     "lint": "eslint .",
     "preview": "vite preview"
   },
+  "pnpm": {
+    "allow-build": [
+      "@swc/core",
+      "esbuild"
+    ]
+  },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.9.0",
