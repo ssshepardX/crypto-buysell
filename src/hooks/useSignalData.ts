@@ -1,33 +1,45 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { generateSignal } from '@/lib/technical-analysis';
 import { Signal } from '@/types/crypto';
 
-const fetchKlineData = async (symbol: string) => {
-  const { data, error } = await supabase.functions.invoke('binance-proxy', {
-    body: { symbol: `${symbol}USDT`, interval: '1h', limit: 100 },
+export interface SignalResponse {
+  signal: Signal;
+  reasoning: string;
+}
+
+const fetchSignalFromFunction = async (symbol: string): Promise<SignalResponse> => {
+  const { data, error } = await supabase.functions.invoke('generate-signal', {
+    body: { symbol: `${symbol}USDT` },
   });
 
   if (error) {
-    throw new Error(`Kripto geçmiş verisi çekilirken hata oluştu (${symbol}): ${error.message}`);
+    console.error(`Error fetching signal for ${symbol}:`, error);
+    // Provide a default 'Hold' signal on error to prevent crashes
+    return {
+      signal: 'Hold',
+      reasoning: 'An error occurred while fetching the signal. Please try again later.',
+    };
   }
   
-  return data;
+  // Ensure the response has the correct shape
+  if (data && (data.signal === 'Buy' || data.signal === 'Sell' || data.signal === 'Hold') && data.reasoning) {
+    return data;
+  }
+
+  // Fallback if the data is malformed
+  return {
+    signal: 'Hold',
+    reasoning: 'Received an invalid signal format from the analysis engine.',
+  };
 };
 
 export const useSignalData = (symbol: string) => {
-  return useQuery<Signal, Error>({
+  return useQuery<SignalResponse, Error>({
     queryKey: ['signal', symbol],
-    queryFn: async () => {
-      const klines = await fetchKlineData(symbol);
-      if (!klines || klines.length === 0) {
-        return 'Hold';
-      }
-      return generateSignal(klines);
-    },
-    // Sinyalleri saatte bir yeniden hesapla
-    refetchInterval: 60 * 60 * 1000, 
-    // Veriyi 30 dakika boyunca taze kabul et
-    staleTime: 30 * 60 * 1000,
+    queryFn: () => fetchSignalFromFunction(symbol),
+    // Refetch signals every 15 minutes
+    refetchInterval: 15 * 60 * 1000, 
+    // Consider data fresh for 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 };

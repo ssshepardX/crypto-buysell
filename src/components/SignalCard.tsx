@@ -3,9 +3,10 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Signal } from '@/types/crypto';
-import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Info } from 'lucide-react';
 import { useSignalData } from '@/hooks/useSignalData';
 import { Skeleton } from './ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface SignalCardProps {
   name: string;
@@ -15,7 +16,9 @@ interface SignalCardProps {
 }
 
 const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h }) => {
-  const { data: signal, isLoading: isSignalLoading } = useSignalData(symbol);
+  const { data, isLoading: isSignalLoading } = useSignalData(symbol);
+  const signal = data?.signal || 'Hold';
+  const reasoning = data?.reasoning || 'Loading analysis...';
 
   const getSignalVariant = (currentSignal: Signal): 'destructive' | 'secondary' | 'default' => {
     if (currentSignal === 'Sell') return 'destructive';
@@ -43,11 +46,19 @@ const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h 
             <p className="text-sm text-muted-foreground">{symbol}</p>
           </div>
         </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="max-w-xs">{reasoning}</p>
+          </TooltipContent>
+        </Tooltip>
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: price > 1 ? 2 : 8 })}</div>
         <div className={`flex items-center text-sm ${isPositiveChange ? 'text-green-500' : 'text-red-500'}`}>
-          {isPositiveChange ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+          {isPositiveChange ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-w-4" />}
           <span>{change24h.toFixed(2)}% (24h)</span>
         </div>
       </CardContent>
@@ -56,10 +67,10 @@ const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h 
           <Skeleton className="h-8 w-full" />
         ) : (
           <Badge 
-            variant={getSignalVariant(signal || 'Hold')} 
+            variant={getSignalVariant(signal)} 
             className={`w-full justify-center py-2 text-md ${signal === 'Buy' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
           >
-            {getSignalText(signal || 'Hold')}
+            {getSignalText(signal)}
           </Badge>
         )}
       </CardFooter>
