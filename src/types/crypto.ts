@@ -1,4 +1,5 @@
 export type Signal = 'Buy' | 'Sell' | 'Hold';
+export type RiskLevel = 'Low' | 'Moderate' | 'High';
 
 export interface CryptoSignal {
   id: string;
