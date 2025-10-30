@@ -14,12 +14,23 @@ const Navbar = () => {
   };
 
   return (
-    <header className="w-full p-4 border-b">
+    <header className="w-full p-4 border-b border-white/10 sticky top-0 bg-background/80 backdrop-blur-sm z-50">
       <div className="container mx-auto flex justify-between items-center">
         <Link to="/" className="flex items-center space-x-2">
           <img src="/logo.png" alt="Shepard Signals Logo" className="h-10" />
         </Link>
-        <nav className="flex items-center space-x-4">
+        <nav className="hidden md:flex items-center space-x-2">
+          <Link to="/pricing">
+            <Button variant="ghost">Pricing</Button>
+          </Link>
+          <Link to="/about">
+            <Button variant="ghost">About</Button>
+          </Link>
+          <Link to="/contact">
+            <Button variant="ghost">Contact</Button>
+          </Link>
+        </nav>
+        <div className="flex items-center space-x-4">
           {session ? (
             <>
               <Link to="/dashboard">
@@ -38,7 +49,7 @@ const Navbar = () => {
             </>
           )}
           <ThemeToggle />
-        </nav>
+        </div>
       </div>
     </header>
   );

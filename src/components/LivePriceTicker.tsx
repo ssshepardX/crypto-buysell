@@ -3,7 +3,7 @@ import { useBinanceData } from '@/hooks/useBinanceData';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 
-const TOP_COINS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT'];
+const TOP_COINS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT'];
 
 const TickerItem = ({ symbol, price, change }: { symbol: string; price: string; change: number }) => {
   const isPositive = change >= 0;
@@ -35,12 +35,12 @@ const LivePriceTicker = () => {
   }
 
   return (
-    <div className="py-3 border-y border-white/10 overflow-hidden relative">
+    <div className="py-3 border-y border-white/10 overflow-hidden relative bg-background/50 backdrop-blur-sm">
       <div className="flex animate-marquee whitespace-nowrap">
         {tickerData.map(item => (
           <TickerItem key={item!.symbol} symbol={item!.symbol} price={item!.lastPrice} change={parseFloat(item!.priceChangePercent)} />
         ))}
-        {/* Animasyonun pürüzsüz olması için listeyi kopyalıyoruz */}
+        {/* Duplicate for smooth animation */}
         {tickerData.map(item => (
           <TickerItem key={`${item!.symbol}-clone`} symbol={item!.symbol} price={item!.lastPrice} change={parseFloat(item!.priceChangePercent)} />
         ))}
@@ -51,7 +51,7 @@ const LivePriceTicker = () => {
           100% { transform: translateX(-50%); }
         }
         .animate-marquee {
-          animation: marquee 30s linear infinite;
+          animation: marquee 40s linear infinite;
         }
       `}</style>
     </div>
