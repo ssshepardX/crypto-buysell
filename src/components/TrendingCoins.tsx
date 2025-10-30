@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
-// Binance'in resmi bir "trending" API'ı olmadığı için popüler coinlerden bir liste kullanıyoruz.
+
 const TRENDING_COINS = ['DOGEUSDT', 'SHIBUSDT', 'PEPEUSDT', 'WIFUSDT', 'BONKUSDT', 'ADAUSDT', 'AVAXUSDT', 'DOTUSDT', 'LINKUSDT', 'MATICUSDT'];
 
 const TrendingCoinCard = ({ symbol, price, change }: { symbol: string; price: string; change: number }) => {
