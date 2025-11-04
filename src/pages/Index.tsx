@@ -5,10 +5,15 @@ import { Link } from "react-router-dom";
 import { TrendingUp, ShieldCheck, Zap } from "lucide-react";
 import LivePriceTicker from "@/components/LivePriceTicker";
 import TrendingCoins from "@/components/TrendingCoins";
+import Head from "@/components/Head";
 
 const Index = () => {
   return (
     <div className="min-h-screen flex flex-col">
+      <Head 
+        title="Shepard Signals - AI-Powered Crypto Trading Signals"
+        description="Get accurate crypto trading signals powered by advanced AI algorithms. Maximize your profits with real-time market analysis and trading recommendations."
+      />
       <Navbar />
       <main className="flex-grow">
         {/* Hero Section */}

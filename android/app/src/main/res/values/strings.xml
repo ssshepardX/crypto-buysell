@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">buysellcrypto</string>
+    <string name="title_activity_main">buysellcrypto</string>
+    <string name="package_name">com.example.buysellcrypto</string>
+    <string name="custom_url_scheme">com.example.buysellcrypto</string>
+</resources>
