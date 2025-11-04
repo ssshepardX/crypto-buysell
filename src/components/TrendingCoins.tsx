@@ -5,7 +5,18 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 
-const TRENDING_COINS = ['DOGEUSDT', 'SHIBUSDT', 'PEPEUSDT', 'WIFUSDT', 'BONKUSDT', 'ADAUSDT', 'AVAXUSDT', 'DOTUSDT', 'LINKUSDT', 'MATICUSDT'];
+const TRENDING_COINS = [
+  // Major Coins
+  'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'MATICUSDT',
+  // DeFi
+  'LINKUSDT', 'UNIUSDT', 'AAVEUSDT', 'MKRUSDT', 'SNXUSDT',
+  // Layer 1s
+  'AVAXUSDT', 'SOLUSDT', 'DOTUSDT', 'ATOMUSDT', 'NEARUSDT',
+  // AI & Tech
+  'FETUSDT', 'OCEANUSDT', 'AGIXUSDT', 'INJUSDT',
+  // Meme Coins
+  'SHIBUSDT', 'PEPEUSDT', 'FLOKIUSDT', 'BONKUSDT'
+];
 
 const TrendingCoinCard = ({ symbol, price, change }: { symbol: string; price: string; change: number }) => {
   const isPositive = change >= 0;

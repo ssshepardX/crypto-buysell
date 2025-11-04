@@ -97,19 +97,23 @@ serve(async (req) => {
     const prevHma21 = hma21[hma21.length - 2];
     const lastRsi7 = rsi7[rsi7.length - 1];
 
-    // Volume Filter
+    // Volume Filter - More lenient now (40% of average)
     const avgVolume = volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
-    if (volumes[volumes.length - 1] < avgVolume * 0.6) {
-      return new Response(JSON.stringify({ signal: 'Hold', reasoning: 'Signal ignored due to low volume.' }), {
+    if (volumes[volumes.length - 1] < avgVolume * 0.4) {
+      return new Response(JSON.stringify({ signal: 'Hold', reasoning: 'Signal ignored due to extremely low volume.' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200
       });
     }
 
     // --- The Hybrid Logic ---
-    // BUY Trigger: HMA(8) crosses UP HMA(21)
-    const isBuyTrigger = prevHma8 <= prevHma21 && lastHma8 > lastHma21 && lastRsi7 < 70;
-    // SELL Trigger: HMA(8) crosses DOWN HMA(21)
-    const isSellTrigger = prevHma8 >= prevHma21 && lastHma8 < lastHma21 && lastRsi7 > 30;
+    // More lenient RSI conditions for both buy and sell signals
+    // BUY Trigger: HMA(8) crosses UP HMA(21) with RSI below 75
+    const isBuyTrigger = (prevHma8 <= prevHma21 && lastHma8 > lastHma21 && lastRsi7 < 75) || 
+                        (lastHma8 > lastHma21 * 1.001 && lastRsi7 < 40); // Strong oversold condition
+    
+    // SELL Trigger: HMA(8) crosses DOWN HMA(21) with RSI above 25
+    const isSellTrigger = (prevHma8 >= prevHma21 && lastHma8 < lastHma21 && lastRsi7 > 25) ||
+                         (lastHma8 < lastHma21 * 0.999 && lastRsi7 > 80); // Strong overbought condition
 
     if (isBuyTrigger) {
       const prompt = `
