@@ -1,12 +1,17 @@
 {
   "version": 2,
+  "framework": "vite",
+  "buildCommand": "pnpm run build",
+  "devCommand": "pnpm run dev",
+  "installCommand": "pnpm install",
+  "outputDirectory": "dist",
   "builds": [
     {
       "src": "package.json",
       "use": "@vercel/static-build",
       "config": {
         "installCommand": "pnpm install",
-        "buildCommand": "pnpm build",
+        "buildCommand": "pnpm run build",
         "outputDirectory": "dist"
       }
     }
