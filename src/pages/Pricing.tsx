@@ -24,8 +24,10 @@ const plans = [
   },
   {
     name: "Scalper",
+    // Monthly price (will be billed annually). Display shows monthly but charged yearly.
     priceMonthly: 9.99,
-    priceYearly: 99.99, // ~17% discount
+    // priceYearly kept equal to monthly to represent the monthly rate when billed annually
+    priceYearly: 9.99,
     description: "Perfect for active day traders.",
     features: [
       "Access to all signals",
@@ -40,8 +42,9 @@ const plans = [
   },
   {
     name: "Pro Trader",
-    priceMonthly: 19.99,
-    priceYearly: 199.99, // ~17% discount
+    // Monthly price (will be billed annually). Display shows monthly but charged yearly.
+    priceMonthly: 17.99,
+    priceYearly: 17.99,
     description: "Advanced analysis and AI-powered insights.",
     features: [
       "All Scalper features",
@@ -57,7 +60,8 @@ const plans = [
 ];
 
 const Pricing = () => {
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  // Default to yearly so the site shows 'billed annually' (monthly price, charged yearly)
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("yearly");
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -72,7 +76,7 @@ const Pricing = () => {
           </p>
           <div className="flex items-center justify-center space-x-4 mb-12">
             <Label htmlFor="billing-cycle" className={cn(billingCycle === 'monthly' ? 'text-foreground' : 'text-muted-foreground')}>
-              Monthly
+              Pay Monthly
             </Label>
             <Switch
               id="billing-cycle"
@@ -80,7 +84,7 @@ const Pricing = () => {
               onCheckedChange={(checked) => setBillingCycle(checked ? "yearly" : "monthly")}
             />
             <Label htmlFor="billing-cycle" className={cn(billingCycle === 'yearly' ? 'text-foreground' : 'text-muted-foreground')}>
-              Yearly <span className="text-green-500 font-semibold">(Save up to 33%)</span>
+              Pay Annually <span className="text-green-500 font-semibold">(Save up to 23%)</span>
             </Label>
           </div>
         </div>
@@ -98,13 +102,18 @@ const Pricing = () => {
                 <CardDescription>{plan.description}</CardDescription>
               </CardHeader>
               <CardContent className="flex-grow space-y-6">
-                <div className="flex items-baseline">
-                  <span className="text-4xl font-bold">
-                    ${billingCycle === "monthly" ? plan.priceMonthly : plan.priceYearly}
-                  </span>
-                  <span className="text-muted-foreground ml-2">
-                    /{billingCycle === "monthly" ? "month" : "year"}
-                  </span>
+                <div className="flex flex-col">
+                  <div className="flex items-baseline">
+                    <span className="text-4xl font-bold">
+                      ${billingCycle === "monthly" ? plan.priceMonthly : plan.priceYearly}
+                    </span>
+                    <span className="text-muted-foreground ml-2">/month</span>
+                  </div>
+                  {billingCycle === "yearly" && plan.priceYearly > 0 && (
+                    <div className="text-sm text-green-500">
+                      Billed annually (${(plan.priceYearly * 12).toFixed(2)}/year)
+                    </div>
+                  )}
                 </div>
                 <ul className="space-y-3">
                   {plan.features.map((feature) => (
