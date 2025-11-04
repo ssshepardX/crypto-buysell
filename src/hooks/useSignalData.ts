@@ -1,46 +1,69 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Signal } from '@/types/crypto';
 
-export type RiskLevel = 'Low' | 'Moderate' | 'High';
-
-export interface SignalResponse {
-  signal: Signal;
-  reasoning: string;
-  risk?: RiskLevel;
-  tp1?: number;
-  tp2?: number;
-  tp3?: number;
+export interface Signal {
+  id: string;
+  symbol: string;
+  type: string;
+  price: number;
+  price_change: number;
+  volume: number;
+  volume_multiple: number;
+  time: string;
+  ai_analysis?: {
+    movement_type: 'Organic' | 'Manipulation' | 'Mixed';
+    risk_level: 'Low' | 'Medium' | 'High';
+    trading_advice: string;
+    warning_signs: string;
+  };
 }
 
-const fetchSignalFromFunction = async (symbol: string): Promise<SignalResponse> => {
-  const { data, error } = await supabase.functions.invoke('generate-signal', {
-    body: { symbol: `${symbol}USDT` },
-  });
+export const useSignalData = (userPlan: 'free' | 'scalper' | 'pro' = 'free') => {
+  return useQuery<Signal[]>(
+    ['signals', userPlan],
+    async () => {
+      let query = supabase
+        .from('signals')
+        .select('*')
+        .order('time', { ascending: false });
 
-  if (error) {
-    console.error(`Error fetching signal for ${symbol}:`, error);
-    return {
-      signal: 'Hold',
-      reasoning: 'An error occurred while fetching the signal. Please try again later.',
-    };
-  }
-  
-  if (data && (data.signal === 'Buy' || data.signal === 'Sell' || data.signal === 'Hold') && data.reasoning) {
-    return data;
-  }
+      // Plan-based limitations
+      if (userPlan === 'free') {
+        // Free users only see one random signal per day
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        query = query
+          .gte('time', today.toISOString())
+          .limit(1);
+      } else if (userPlan === 'scalper') {
+        // Scalpers see all signals but without detailed AI analysis
+        query = query.limit(50);
+      } else {
+        // Pro users see everything
+        query = query.limit(100);
+      }
 
-  return {
-    signal: 'Hold',
-    reasoning: 'Received an invalid signal format from the analysis engine.',
-  };
-};
+      const { data, error } = await query;
 
-export const useSignalData = (symbol: string) => {
-  return useQuery<SignalResponse, Error>({
-    queryKey: ['signal', symbol],
-    queryFn: () => fetchSignalFromFunction(symbol),
-    refetchInterval: 15 * 60 * 1000, 
-    staleTime: 5 * 60 * 1000,
-  });
+      if (error) throw error;
+      
+      // For scalper plan, remove detailed AI analysis
+      if (userPlan === 'scalper') {
+        return data.map(signal => ({
+          ...signal,
+          ai_analysis: signal.ai_analysis ? {
+            ...signal.ai_analysis,
+            trading_advice: undefined,
+            warning_signs: undefined
+          } : undefined
+        }));
+      }
+
+      return data;
+    },
+    {
+      refetchInterval: 60000, // Refetch every minute
+      staleTime: 30000, // Consider data stale after 30 seconds
+    }
+  );
 };

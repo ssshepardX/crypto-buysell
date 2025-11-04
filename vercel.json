@@ -21,5 +21,41 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "routes": [
+    {
+      "src": "/api/signals",
+      "methods": ["GET", "OPTIONS"],
+      "dest": "/api/signals.ts"
+    },
+    {
+      "src": "/api/ai-analysis",
+      "methods": ["POST", "OPTIONS"],
+      "dest": "/api/ai-analysis.ts"
+    }
+  ],
+  "env": {
+    "SUPABASE_URL": "https://your-supabase-url.supabase.co",
+    "SUPABASE_SERVICE_ROLE_KEY": "your-supabase-service-role-key",
+    "GEMINI_API_KEY": "your-gemini-api-key"
+  },
+  "routes": [
+    {
+      "src": "/api/signals",
+      "methods": ["GET", "OPTIONS"],
+      "dest": "/api/signals.ts"
+    },
+    {
+      "src": "/api/ai-analysis",
+      "methods": ["POST", "OPTIONS"],
+      "dest": "/api/ai-analysis.ts"
+    }
+  ],
+  "functions": {
+    "api": {
+      "entry": "api/index.ts",
+      "memory": 128,
+      "maxDuration": 10
+    }
+  }
 }
