@@ -99,15 +99,15 @@ const SignalCardWrapper = ({ coin, isFavorite, onToggleFavorite }) => {
   }
 
   const shouldShowCard = () => {
-    if (!signalData) return false;
+    if (!signalData || Array.isArray(signalData)) return false;
     
     // Show all "Buy" signals
-    if (signalData.signal === 'Buy') {
+    if (signalData.type === 'Buy') {
       return true;
     }
     
     // Only show "Sell" signals if there's an open position for that symbol
-    if (signalData.signal === 'Sell' && openPositions.includes(coin.symbol)) {
+    if (signalData.type === 'Sell' && openPositions.includes(coin.symbol)) {
       return true;
     }
 

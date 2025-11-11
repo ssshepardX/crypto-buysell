@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 export interface Signal {
   id: string;
   symbol: string;
-  type: string;
+  type: string; // 'Buy', 'Sell', 'Hold'
   price: number;
   price_change: number;
   volume: number;
@@ -18,52 +18,39 @@ export interface Signal {
   };
 }
 
-export const useSignalData = (userPlan: 'free' | 'scalper' | 'pro' = 'free') => {
-  return useQuery<Signal[]>(
-    ['signals', userPlan],
-    async () => {
-      let query = supabase
+export const useSignalData = (symbol?: string) => {
+  return useQuery<Signal | Signal[] | null>({
+    queryKey: ['signals', symbol],
+    queryFn: async () => {
+      // If symbol is provided, fetch signal for that specific coin
+      if (symbol) {
+        const { data, error } = await supabase
+          .from('signals')
+          .select('*')
+          .eq('symbol', symbol)
+          .single();
+
+        if (error) {
+          // If no signal found, return null instead of throwing
+          if (error.code === 'PGRST116') {
+            return null;
+          }
+          throw error;
+        }
+        return data;
+      }
+
+      // If no symbol, fetch all signals
+      const { data, error } = await supabase
         .from('signals')
         .select('*')
-        .order('time', { ascending: false });
-
-      // Plan-based limitations
-      if (userPlan === 'free') {
-        // Free users only see one random signal per day
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        query = query
-          .gte('time', today.toISOString())
-          .limit(1);
-      } else if (userPlan === 'scalper') {
-        // Scalpers see all signals but without detailed AI analysis
-        query = query.limit(50);
-      } else {
-        // Pro users see everything
-        query = query.limit(100);
-      }
-
-      const { data, error } = await query;
+        .order('time', { ascending: false })
+        .limit(100);
 
       if (error) throw error;
-      
-      // For scalper plan, remove detailed AI analysis
-      if (userPlan === 'scalper') {
-        return data.map(signal => ({
-          ...signal,
-          ai_analysis: signal.ai_analysis ? {
-            ...signal.ai_analysis,
-            trading_advice: undefined,
-            warning_signs: undefined
-          } : undefined
-        }));
-      }
-
-      return data;
+      return data || [];
     },
-    {
-      refetchInterval: 60000, // Refetch every minute
-      staleTime: 30000, // Consider data stale after 30 seconds
-    }
-  );
+    refetchInterval: 60000, // Refetch every minute
+    staleTime: 30000, // Consider data stale after 30 seconds
+  });
 };

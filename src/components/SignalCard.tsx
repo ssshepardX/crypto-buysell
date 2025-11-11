@@ -2,19 +2,10 @@ import React from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Signal, RiskLevel } from '@/types/crypto';
-import { ArrowUpRight, ArrowDownRight, Star, Sparkles, Shield, Target } from 'lucide-react';
+import { Signal as SignalType } from '@/hooks/useSignalData';
+import { ArrowUpRight, ArrowDownRight, Star, Sparkles, Shield } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
-
-interface SignalData {
-  signal: Signal;
-  reasoning: string;
-  risk?: RiskLevel;
-  tp1?: number;
-  tp2?: number;
-  tp3?: number;
-}
 
 interface SignalCardProps {
   name: string;
@@ -23,21 +14,23 @@ interface SignalCardProps {
   change24h: number;
   isFavorite: boolean;
   onToggleFavorite: (symbol: string) => void;
-  signalData: SignalData | undefined;
+  signalData: SignalType | undefined;
 }
 
 const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h, isFavorite, onToggleFavorite, signalData }) => {
-  const { signal = 'Hold', reasoning = 'Loading analysis...', risk, tp1, tp2, tp3 } = signalData || {};
+  const signal = signalData?.type || 'Hold';
+  const riskLevel = signalData?.ai_analysis?.risk_level;
+  const tradingAdvice = signalData?.ai_analysis?.trading_advice;
 
-  const getSignalClasses = (currentSignal: Signal): string => {
+  const getSignalClasses = (currentSignal: string): string => {
     if (currentSignal === 'Buy') return 'bg-green-600 hover:bg-green-700 text-white';
     if (currentSignal === 'Sell') return 'bg-red-600 hover:bg-red-700 text-white';
     return 'bg-gray-500 hover:bg-gray-600 text-white';
   };
   
-  const getRiskColor = (riskLevel?: RiskLevel) => {
+  const getRiskColor = (riskLevel?: string) => {
     if (riskLevel === 'Low') return 'bg-sky-500';
-    if (riskLevel === 'Moderate') return 'bg-yellow-500';
+    if (riskLevel === 'Medium') return 'bg-yellow-500';
     if (riskLevel === 'High') return 'bg-orange-600';
     return 'bg-gray-400';
   };
@@ -74,20 +67,18 @@ const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h,
             </div>
           </div>
           
-          <div className="text-xs text-muted-foreground flex items-start space-x-2 h-8">
-            <Sparkles className="h-3 w-3 mt-0.5 flex-shrink-0 text-purple-400" />
-            <p className="truncate">{reasoning}</p>
-          </div>
+          {tradingAdvice && (
+            <div className="text-xs text-muted-foreground flex items-start space-x-2 h-8">
+              <Sparkles className="h-3 w-3 mt-0.5 flex-shrink-0 text-purple-400" />
+              <p className="truncate">{tradingAdvice}</p>
+            </div>
+          )}
 
-          {signal === 'Buy' && (
+          {signal === 'Buy' && riskLevel && (
             <div className="space-y-1 pt-1">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5"><Shield size={14} /> Risk</div>
-                <Badge className={cn("text-white", getRiskColor(risk))}>{risk || 'N/A'}</Badge>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5"><Target size={14} /> TP 1</div>
-                <span>${tp1?.toLocaleString() || 'N/A'}</span>
+                <Badge className={cn("text-white", getRiskColor(riskLevel))}>{riskLevel}</Badge>
               </div>
             </div>
           )}
