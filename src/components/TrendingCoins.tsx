@@ -41,7 +41,12 @@ const TrendingCoinCard = ({ symbol, price, change }: { symbol: string; price: st
 };
 
 const TrendingCoins = () => {
-  const { data, isLoading } = useBinanceData();
+  const { data, isLoading, error } = useBinanceData();
+
+  if (error) {
+    console.error('TrendingCoins error:', error);
+    return <div className="text-red-500">Failed to load trending coins</div>;
+  }
 
   const trendingData = data
     ? TRENDING_COINS.map(coinSymbol => data.find(d => d.symbol === coinSymbol)).filter(Boolean)

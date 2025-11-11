@@ -19,31 +19,32 @@ export interface Signal {
 }
 
 export const useSignalData = (symbol?: string) => {
-  return useQuery<Signal | null>({
+  return useQuery({
     queryKey: ['signals', symbol],
     queryFn: async () => {
-      // If symbol is provided, fetch signal for that specific coin
-      if (symbol) {
-        const { data, error } = await supabase
-          .from('signals')
-          .select('*')
-          .eq('symbol', symbol)
-          .single();
+      try {
+        if (symbol) {
+          const { data, error } = await supabase
+            .from('signals')
+            .select('*')
+            .eq('symbol', symbol)
+            .single();
 
-        if (error) {
-          // If no signal found, return null instead of throwing
-          if (error.code === 'PGRST116') {
-            return null;
+          if (error) {
+            console.warn(`Signal fetch error for ${symbol}:`, error.code);
+            if (error.code === 'PGRST116' || error.code === 'PGRST001') {
+              return null;
+            }
+            throw error;
           }
-          throw error;
+          return data;
         }
-        return data as Signal;
+        return null;
+      } catch (error) {
+        console.error('useSignalData error:', error);
+        throw error;
       }
-
-      // If no symbol, return null (don't fetch all signals for a specific coin query)
-      return null;
     },
-    refetchInterval: 60000, // Refetch every minute
-    staleTime: 30000, // Consider data stale after 30 seconds
+    staleTime: Infinity,
   });
 };

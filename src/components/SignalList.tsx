@@ -33,7 +33,7 @@ const COIN_NAME_MAP = new Map([
 ]);
 
 const SignalList = () => {
-  const { data: liveData, isLoading: isLiveLoading } = useBinanceData();
+  const { data: liveData, isLoading: isLiveLoading, error: liveError } = useBinanceData();
   const { favorites, toggleFavorite, isLoading: areFavoritesLoading } = useFavorites();
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
@@ -57,6 +57,11 @@ const SignalList = () => {
   }, [top200Coins, showFavoritesOnly, favorites]);
 
   const isLoading = isLiveLoading || areFavoritesLoading;
+
+  if (liveError) {
+    console.error('SignalList error:', liveError);
+    return <div className="text-red-500">Failed to load signals</div>;
+  }
 
   if (isLoading) {
     return (

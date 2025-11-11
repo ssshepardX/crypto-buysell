@@ -20,10 +20,10 @@ const fetchBinanceData = async (): Promise<BinanceTicker[]> => {
 };
 
 export const useBinanceData = () => {
-  return useQuery<BinanceTicker[], Error>({
+  return useQuery({
     queryKey: ['binanceData'],
     queryFn: fetchBinanceData,
-    refetchInterval: 5 * 60 * 1000, // 5 dakikada bir
+    staleTime: Infinity,
   });
 };
 
