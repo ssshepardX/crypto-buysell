@@ -5,9 +5,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import WinRateTracker from "@/components/WinRateTracker";
 import SignalHistory from "@/components/SignalHistory";
 import TrendingCoins from "@/components/TrendingCoins";
+import { useGenerateSignals } from "@/hooks/useGenerateSignals";
 
 const Dashboard = () => {
   const { session, loading } = useSession();
+  
+  // Generate signals when dashboard loads
+  useGenerateSignals();
 
   if (loading) {
     return (
