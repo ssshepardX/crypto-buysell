@@ -1,12 +1,22 @@
 import React, { useState, useMemo } from 'react';
 import SignalCard from './SignalCard';
-import { useBinanceData } from '@/hooks/useBinanceData';
+import { useBinanceData, BinanceTicker } from '@/hooks/useBinanceData';
 import { Skeleton } from './ui/skeleton';
 import { useFavorites } from '@/hooks/useFavorites';
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useSignalData } from '@/hooks/useSignalData';
+import { useSignalData, Signal } from '@/hooks/useSignalData';
 import { useOpenPositions } from '@/hooks/useOpenPositions';
+
+interface CoinWithName extends BinanceTicker {
+  name: string;
+}
+
+interface SignalCardWrapperProps {
+  coin: CoinWithName;
+  isFavorite: boolean;
+  onToggleFavorite: (symbol: string) => void;
+}
 
 const COIN_NAME_MAP = new Map([
   ['BTC', 'Bitcoin'], ['ETH', 'Ethereum'], ['SOL', 'Solana'], ['XRP', 'XRP'], ['DOGE', 'Dogecoin'],
@@ -88,7 +98,7 @@ const SignalList = () => {
 };
 
 // Wrapper to fetch signal for each card and apply filter
-const SignalCardWrapper = ({ coin, isFavorite, onToggleFavorite }) => {
+const SignalCardWrapper = ({ coin, isFavorite, onToggleFavorite }: SignalCardWrapperProps) => {
   const { data: signalData, isLoading: isSignalLoading } = useSignalData(coin.symbol);
   const { data: openPositions = [], isLoading: isOpenPositionsLoading } = useOpenPositions();
 
@@ -98,24 +108,19 @@ const SignalCardWrapper = ({ coin, isFavorite, onToggleFavorite }) => {
     return <Skeleton className="h-[280px] w-full" />;
   }
 
-  const shouldShowCard = () => {
-    if (!signalData || Array.isArray(signalData)) return false;
-    
-    // Show all "Buy" signals
-    if (signalData.type === 'Buy') {
-      return true;
-    }
-    
-    // Only show "Sell" signals if there's an open position for that symbol
-    if (signalData.type === 'Sell' && openPositions.includes(coin.symbol)) {
-      return true;
-    }
+  // Type guard: ensure signalData is not null
+  if (!signalData) {
+    return null;
+  }
 
-    // Don't show "Hold" or other signals
-    return false;
-  };
+  // Show all "Buy" signals
+  const isBuySignal = signalData.type === 'Buy';
+  // Only show "Sell" signals if there's an open position for that symbol
+  const isSellSignal = signalData.type === 'Sell' && openPositions.includes(coin.symbol);
+  // Don't show "Hold" or other signals
+  const shouldShow = isBuySignal || isSellSignal;
 
-  if (!shouldShowCard()) {
+  if (!shouldShow) {
     return null;
   }
 

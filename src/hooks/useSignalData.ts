@@ -19,7 +19,7 @@ export interface Signal {
 }
 
 export const useSignalData = (symbol?: string) => {
-  return useQuery<Signal | Signal[] | null>({
+  return useQuery<Signal | null>({
     queryKey: ['signals', symbol],
     queryFn: async () => {
       // If symbol is provided, fetch signal for that specific coin
@@ -37,18 +37,11 @@ export const useSignalData = (symbol?: string) => {
           }
           throw error;
         }
-        return data;
+        return data as Signal;
       }
 
-      // If no symbol, fetch all signals
-      const { data, error } = await supabase
-        .from('signals')
-        .select('*')
-        .order('time', { ascending: false })
-        .limit(100);
-
-      if (error) throw error;
-      return data || [];
+      // If no symbol, return null (don't fetch all signals for a specific coin query)
+      return null;
     },
     refetchInterval: 60000, // Refetch every minute
     staleTime: 30000, // Consider data stale after 30 seconds

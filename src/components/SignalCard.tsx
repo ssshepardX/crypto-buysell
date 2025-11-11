@@ -14,7 +14,7 @@ interface SignalCardProps {
   change24h: number;
   isFavorite: boolean;
   onToggleFavorite: (symbol: string) => void;
-  signalData: SignalType | undefined;
+  signalData: SignalType;
 }
 
 const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h, isFavorite, onToggleFavorite, signalData }) => {
