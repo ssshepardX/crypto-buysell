@@ -68,10 +68,20 @@ const calculateRSI = (prices: number[], period: number) => {
 // Fetch Binance klines
 async function fetchBinanceKlines(symbol: string, interval = '15m', limit = 100) {
   try {
-    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+    // Ensure symbol is in correct format (e.g., BTCUSDT)
+    const formattedSymbol = symbol.includes('USDT') ? symbol : `${symbol}USDT`;
+    const url = `https://api.binance.com/api/v3/klines?symbol=${formattedSymbol}&interval=${interval}&limit=${limit}`;
+    
+    console.log(`Fetching klines from: ${url}`);
+    
     const response = await fetch(url);
-    if (!response.ok) return [];
-    return await response.json();
+    if (!response.ok) {
+      console.error(`Binance API error for ${formattedSymbol}: ${response.status} ${response.statusText}`);
+      return [];
+    }
+    const data = await response.json();
+    console.log(`Got ${data.length} klines for ${formattedSymbol}`);
+    return data;
   } catch (error) {
     console.error(`Error fetching klines for ${symbol}:`, error);
     return [];
