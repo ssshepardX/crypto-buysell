@@ -1,12 +1,18 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { getTop200CoinsByVolume } from '@/services/binanceService';
 
-// Popular coins to generate signals for
-const SIGNAL_COINS = [
-  'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT', 
-  'SOLUSDT', 'DOGEUSDT', 'MATICUSDT', 'LINKUSDT', 'UNIUSDT',
-  'AVAXUSDT', 'DOTUSDT', 'NEARUSDT', 'INJUSDT', 'FTMUSDT'
-];
+export interface SignalGenerationConfig {
+  maxCoins: number;
+  interval: '1m' | '5m' | '15m' | '1h';
+  enabled: boolean;
+}
+
+const DEFAULT_CONFIG: SignalGenerationConfig = {
+  maxCoins: 200,
+  interval: '15m', // Optimal for signal generation
+  enabled: true
+};
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -136,9 +142,9 @@ async function getAiAnalysis(symbol: string, signal: 'Buy' | 'Sell', rsi: number
 }
 
 // Generate signal for a symbol
-async function generateSignalForSymbol(symbol: string) {
+async function generateSignalForSymbol(symbol: string, interval: '1m' | '5m' | '15m' | '1h' = '15m') {
   try {
-    const klines = await fetchBinanceKlines(symbol);
+    const klines = await fetchBinanceKlines(symbol, interval);
     if (klines.length < 22) return null;
 
     const closePrices = klines.map((k: any) => parseFloat(k[4]));
@@ -218,22 +224,67 @@ async function generateSignalForSymbol(symbol: string) {
   }
 }
 
-export const useGenerateSignals = () => {
-  useEffect(() => {
-    // Generate signals on component mount
-    const generateAllSignals = async () => {
-      console.log('Starting signal generation for', SIGNAL_COINS.length, 'coins...');
-      
-      // Process coins sequentially to avoid rate limits
-      for (const coin of SIGNAL_COINS) {
-        await generateSignalForSymbol(coin);
-        // Small delay between requests
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-      
-      console.log('Signal generation completed');
-    };
+export const useGenerateSignals = (config: Partial<SignalGenerationConfig> = {}) => {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [lastGenerated, setLastGenerated] = useState<Date | null>(null);
 
-    generateAllSignals();
-  }, []);
+  const finalConfig = { ...DEFAULT_CONFIG, ...config };
+
+  const generateSignals = async () => {
+    if (isGenerating || !finalConfig.enabled) return;
+
+    setIsGenerating(true);
+    setProgress({ current: 0, total: 0 });
+
+    try {
+      // Get top coins dynamically
+      console.log(`Fetching top ${finalConfig.maxCoins} coins by volume...`);
+      const topCoins = await getTop200CoinsByVolume();
+      const coinsToProcess = topCoins.slice(0, finalConfig.maxCoins).map(coin => coin.symbol);
+
+      console.log(`Starting signal generation for ${coinsToProcess.length} coins using ${finalConfig.interval} interval...`);
+      setProgress({ current: 0, total: coinsToProcess.length });
+
+      let signalsGenerated = 0;
+
+      // Process coins sequentially to avoid rate limits
+      for (let i = 0; i < coinsToProcess.length; i++) {
+        const coin = coinsToProcess[i];
+        const result = await generateSignalForSymbol(coin, finalConfig.interval);
+
+        if (result) {
+          signalsGenerated++;
+        }
+
+        setProgress({ current: i + 1, total: coinsToProcess.length });
+
+        // Small delay between requests to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      console.log(`Signal generation completed: ${signalsGenerated} signals generated from ${coinsToProcess.length} coins`);
+      setLastGenerated(new Date());
+
+    } catch (error) {
+      console.error('Error in signal generation:', error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  useEffect(() => {
+    // Auto-generate signals on mount if enabled
+    if (finalConfig.enabled) {
+      generateSignals();
+    }
+  }, [finalConfig.enabled]);
+
+  return {
+    generateSignals,
+    isGenerating,
+    progress,
+    lastGenerated,
+    config: finalConfig
+  };
 };
