@@ -5,13 +5,32 @@ import { Skeleton } from "@/components/ui/skeleton";
 import WinRateTracker from "@/components/WinRateTracker";
 import SignalHistory from "@/components/SignalHistory";
 import TrendingCoins from "@/components/TrendingCoins";
+import PumpAlerts from "@/components/PumpAlerts";
 import { useGenerateSignals } from "@/hooks/useGenerateSignals";
+import { useMarketWatcher } from "@/hooks/useMarketWatcher";
+import { Button } from "@/components/ui/button";
+import { Play, Square, Settings } from "lucide-react";
 
 const Dashboard = () => {
   const { session, loading } = useSession();
-  
+
   // Generate signals when dashboard loads
   useGenerateSignals();
+
+  // Market watcher for pump detection
+  const {
+    isWatching,
+    lastScan,
+    pumpAlerts,
+    startWatching,
+    stopWatching,
+    scanForPumps
+  } = useMarketWatcher({
+    enabled: true,
+    interval: 60, // 1 minute
+    aiEnabled: true,
+    maxCoins: 100
+  });
 
   if (loading) {
     return (
@@ -60,6 +79,42 @@ const Dashboard = () => {
         <section>
           <h2 className="text-2xl font-semibold mb-4">Trade History</h2>
           <SignalHistory />
+        </section>
+
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-semibold">Real-time Pump Detection</h2>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={isWatching ? "destructive" : "default"}
+                size="sm"
+                onClick={isWatching ? stopWatching : startWatching}
+                className="flex items-center gap-2"
+              >
+                {isWatching ? (
+                  <>
+                    <Square className="h-4 w-4" />
+                    Stop Watching
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4" />
+                    Start Watching
+                  </>
+                )}
+              </Button>
+              <Button variant="outline" size="sm" onClick={scanForPumps}>
+                <Settings className="h-4 w-4 mr-2" />
+                Manual Scan
+              </Button>
+            </div>
+          </div>
+          <div className="mb-4 text-sm text-muted-foreground">
+            Status: {isWatching ? '🟢 Watching' : '🔴 Stopped'} |
+            Last scan: {lastScan ? lastScan.toLocaleTimeString() : 'Never'} |
+            Coins monitored: 100
+          </div>
+          <PumpAlerts alerts={pumpAlerts} />
         </section>
 
       </main>
