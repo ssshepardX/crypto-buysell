@@ -43,9 +43,20 @@ const LoadingFallback = () => (
 
 import { HelmetProvider } from 'react-helmet-async';
 
+// Debug component to check environment variables
+const EnvDebug = () => {
+  console.log('Environment Variables Check:');
+  console.log('VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL);
+  console.log('VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Present' : 'Missing');
+  console.log('VITE_GEMINI_API_KEY:', import.meta.env.VITE_GEMINI_API_KEY ? 'Present' : 'Missing');
+
+  return null;
+};
+
 const App = () => (
   <ErrorBoundary>
     <HelmetProvider>
+      <EnvDebug />
       <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
@@ -61,7 +72,7 @@ const App = () => (
                   <Route path="/pricing" element={<Pricing />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/contact" element={<Contact />} />
-                  
+
                   {/* Protected Routes */}
                   <Route element={<ProtectedRoute />}>
                     <Route path="/dashboard" element={<Dashboard />} />
