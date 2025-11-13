@@ -167,16 +167,13 @@ async function generateSignalForSymbol(symbol: string, interval: '1m' | '5m' | '
     const avgVolume = volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
     if (volumes[volumes.length - 1] < avgVolume * 0.4) return null;
 
-    // Check for signals
-    const isBuyTrigger = (prevHma8 <= prevHma21 && lastHma8 > lastHma21 && lastRsi7 < 75) || 
+    // Check for BUY signals only (SELL signals don't make sense for pump detection)
+    const isBuyTrigger = (prevHma8 <= prevHma21 && lastHma8 > lastHma21 && lastRsi7 < 75) ||
                         (lastHma8 > lastHma21 * 1.001 && lastRsi7 < 40);
-    
-    const isSellTrigger = (prevHma8 >= prevHma21 && lastHma8 < lastHma21 && lastRsi7 > 25) ||
-                         (lastHma8 < lastHma21 * 0.999 && lastRsi7 > 80);
 
-    if (!isBuyTrigger && !isSellTrigger) return null;
+    if (!isBuyTrigger) return null;
 
-    const signalType = isBuyTrigger ? 'Buy' : 'Sell';
+    const signalType = 'Buy';
     const aiAnalysis = await getAiAnalysis(symbol, signalType, lastRsi7, lastHma8, lastHma21, lastPrice);
 
     // Insert signal to pump_alerts table (main table)

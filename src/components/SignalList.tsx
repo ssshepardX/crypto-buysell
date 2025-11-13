@@ -5,7 +5,7 @@ import { Skeleton } from './ui/skeleton';
 import { useFavorites } from '@/hooks/useFavorites';
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useSignalData, Signal } from '@/hooks/useSignalData';
+import { usePumpAlerts, PumpAlert } from '@/hooks/useSignalData';
 import { useOpenPositions } from '@/hooks/useOpenPositions';
 
 interface CoinWithName extends BinanceTicker {
@@ -104,7 +104,7 @@ const SignalList = () => {
 
 // Wrapper to fetch signal for each card and apply filter
 const SignalCardWrapper = ({ coin, isFavorite, onToggleFavorite }: SignalCardWrapperProps) => {
-  const { data: signalData, isLoading: isSignalLoading } = useSignalData(coin.symbol);
+  const { data: signalData, isLoading: isSignalLoading } = usePumpAlerts(coin.symbol);
   const { data: openPositions = [], isLoading: isOpenPositionsLoading } = useOpenPositions();
 
   const isLoading = isSignalLoading || isOpenPositionsLoading;
