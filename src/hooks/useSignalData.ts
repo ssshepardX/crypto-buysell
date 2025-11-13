@@ -38,17 +38,18 @@ export const usePumpAlerts = (symbol?: string) => {
             .select('*')
             .eq('symbol', symbol)
             .order('detected_at', { ascending: false })
-            .limit(1)
-            .single();
+            .limit(1);
 
           if (error) {
-            console.warn(`Pump alert fetch error for ${symbol}:`, error.code);
+            console.warn(`Pump alert fetch error for ${symbol}:`, error.code, error.message);
             if (error.code === 'PGRST116' || error.code === 'PGRST001') {
               return null;
             }
             throw error;
           }
-          return data as PumpAlert;
+
+          // Return first item or null if no data
+          return data && data.length > 0 ? data[0] as PumpAlert : null;
         }
         return null;
       } catch (error) {
