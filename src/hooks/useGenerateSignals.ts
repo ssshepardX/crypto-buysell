@@ -173,7 +173,7 @@ async function generateSignalForSymbol(symbol: string) {
     const signalType = isBuyTrigger ? 'Buy' : 'Sell';
     const aiAnalysis = await getAiAnalysis(symbol, signalType, lastRsi7, lastHma8, lastHma21, lastPrice);
 
-    // Insert signal to database
+    // Insert signal to database (legacy signals table for backward compatibility)
     const { error } = await supabase.from('signals').insert({
       symbol: symbol.replace('USDT', ''),
       type: signalType,
