@@ -3,7 +3,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Signal as SignalType } from '@/hooks/useSignalData';
-import { ArrowUpRight, ArrowDownRight, Star, Sparkles, Shield } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Star, Sparkles, Shield, TrendingUp, Volume2 } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -19,8 +19,9 @@ interface SignalCardProps {
 
 const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h, isFavorite, onToggleFavorite, signalData }) => {
   const signal = signalData?.type || 'Hold';
-  const riskLevel = signalData?.ai_analysis?.risk_level;
-  const tradingAdvice = signalData?.ai_analysis?.trading_advice;
+  const riskLevel = signalData?.ai_comment?.riskLevel;
+  const tradingAdvice = signalData?.ai_comment?.tradingAdvice;
+  const volumeMultiplier = signalData?.volume_multiplier || 1;
 
   const getSignalClasses = (currentSignal: string): string => {
     if (currentSignal === 'Buy') return 'bg-green-600 hover:bg-green-700 text-white';
@@ -74,11 +75,32 @@ const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h,
             </div>
           )}
 
-          {signal === 'Buy' && riskLevel && (
+          {signal === 'Buy' && (
             <div className="space-y-1 pt-1">
+              {/* Volume indicator with bars */}
               <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5"><Shield size={14} /> Risk</div>
-                <Badge className={cn("text-white", getRiskColor(riskLevel))}>{riskLevel}</Badge>
+                <div className="flex items-center gap-1">
+                  <Volume2 size={12} className="text-blue-500" />
+                  <div className="flex gap-0.5">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={cn(
+                          "w-1 rounded-sm",
+                          i < Math.min(volumeMultiplier / 0.5, 5)
+                            ? "bg-blue-500 h-2"
+                            : "bg-gray-300 h-1"
+                        )}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-blue-600 font-medium">{volumeMultiplier.toFixed(1)}x</span>
+                </div>
+                {riskLevel && (
+                  <Badge className={cn("text-white text-xs", getRiskColor(riskLevel))}>
+                    {riskLevel}
+                  </Badge>
+                )}
               </div>
             </div>
           )}

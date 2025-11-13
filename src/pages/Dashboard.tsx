@@ -8,8 +8,6 @@ import TrendingCoins from "@/components/TrendingCoins";
 import PumpAlerts from "@/components/PumpAlerts";
 import { useGenerateSignals } from "@/hooks/useGenerateSignals";
 import { useMarketWatcher } from "@/hooks/useMarketWatcher";
-import { Button } from "@/components/ui/button";
-import { Play, Square, Settings } from "lucide-react";
 
 const Dashboard = () => {
   const { session, loading } = useSession();
@@ -82,37 +80,9 @@ const Dashboard = () => {
         </section>
 
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold">Real-time Pump Detection</h2>
-            <div className="flex items-center gap-2">
-              <Button
-                variant={isWatching ? "destructive" : "default"}
-                size="sm"
-                onClick={isWatching ? stopWatching : startWatching}
-                className="flex items-center gap-2"
-              >
-                {isWatching ? (
-                  <>
-                    <Square className="h-4 w-4" />
-                    Stop Watching
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4" />
-                    Start Watching
-                  </>
-                )}
-              </Button>
-              <Button variant="outline" size="sm" onClick={scanForPumps}>
-                <Settings className="h-4 w-4 mr-2" />
-                Manual Scan
-              </Button>
-            </div>
-          </div>
+          <h2 className="text-2xl font-semibold mb-4">Real-time Pump Detection</h2>
           <div className="mb-4 text-sm text-muted-foreground">
-            Status: {isWatching ? '🟢 Watching' : '🔴 Stopped'} |
-            Last scan: {lastScan ? lastScan.toLocaleTimeString() : 'Never'} |
-            Coins monitored: 100
+            🔄 System automatically scans top 200 coins every minute for pump signals
           </div>
           <PumpAlerts alerts={pumpAlerts} />
         </section>

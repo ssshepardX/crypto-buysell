@@ -119,7 +119,10 @@ function getDefaultAnalysis(input: PumpAnalysisInput): AIAnalysisResult {
   let riskLevel: 'Low' | 'Moderate' | 'High' | 'Critical' = 'Moderate';
   let whaleMovementProbability = 50;
 
-  if (isHighVolume && isHighPriceChange) {
+  if (input.volumeMultiplier > 8 && input.priceChange > 10) {
+    riskLevel = 'Critical';
+    whaleMovementProbability = 90;
+  } else if (isHighVolume && isHighPriceChange) {
     riskLevel = 'High';
     whaleMovementProbability = 75;
   } else if (isHighVolume || isHighPriceChange) {

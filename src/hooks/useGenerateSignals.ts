@@ -2,6 +2,21 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { getTop200CoinsByVolume } from '@/services/binanceService';
 
+type BinanceKline = [
+  number, // 0: Open time
+  string, // 1: Open
+  string, // 2: High
+  string, // 3: Low
+  string, // 4: Close
+  string, // 5: Volume
+  number, // 6: Close time
+  string, // 7: Quote asset volume
+  number, // 8: Number of trades
+  string, // 9: Taker buy base asset volume
+  string, // 10: Taker buy quote asset volume
+  string  // 11: Unused
+];
+
 export interface SignalGenerationConfig {
   maxCoins: number;
   interval: '1m' | '5m' | '15m' | '1h';
@@ -72,20 +87,20 @@ const calculateRSI = (prices: number[], period: number) => {
 };
 
 // Fetch Binance klines
-async function fetchBinanceKlines(symbol: string, interval = '15m', limit = 100) {
+async function fetchBinanceKlines(symbol: string, interval = '15m', limit = 100): Promise<BinanceKline[]> {
   try {
     // Ensure symbol is in correct format (e.g., BTCUSDT)
     const formattedSymbol = symbol.includes('USDT') ? symbol : `${symbol}USDT`;
     const url = `https://api.binance.com/api/v3/klines?symbol=${formattedSymbol}&interval=${interval}&limit=${limit}`;
-    
+
     console.log(`Fetching klines from: ${url}`);
-    
+
     const response = await fetch(url);
     if (!response.ok) {
       console.error(`Binance API error for ${formattedSymbol}: ${response.status} ${response.statusText}`);
       return [];
     }
-    const data = await response.json();
+    const data: BinanceKline[] = await response.json();
     console.log(`Got ${data.length} klines for ${formattedSymbol}`);
     return data;
   } catch (error) {
@@ -147,8 +162,8 @@ async function generateSignalForSymbol(symbol: string, interval: '1m' | '5m' | '
     const klines = await fetchBinanceKlines(symbol, interval);
     if (klines.length < 22) return null;
 
-    const closePrices = klines.map((k: any) => parseFloat(k[4]));
-    const volumes = klines.map((k: any) => parseFloat(k[7]));
+    const closePrices = klines.map((k: BinanceKline) => parseFloat(k[4]));
+    const volumes = klines.map((k: BinanceKline) => parseFloat(k[7]));
 
     const hma8 = calculateHMA(closePrices, 8);
     const hma21 = calculateHMA(closePrices, 21);
@@ -163,9 +178,10 @@ async function generateSignalForSymbol(symbol: string, interval: '1m' | '5m' | '
     const lastRsi7 = rsi7[rsi7.length - 1];
     const lastPrice = closePrices[closePrices.length - 1];
 
-    // Volume filter
+    // Volume filter - Must be at least 2.5x average volume (as per pseudo code)
     const avgVolume = volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
-    if (volumes[volumes.length - 1] < avgVolume * 0.4) return null;
+    const volumeMultiplier = volumes[volumes.length - 1] / avgVolume;
+    if (volumeMultiplier < 2.5) return null; // Minimum 2.5x volume spike
 
     // Check for BUY signals only (SELL signals don't make sense for pump detection)
     const isBuyTrigger = (prevHma8 <= prevHma21 && lastHma8 > lastHma21 && lastRsi7 < 75) ||
