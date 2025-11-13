@@ -112,7 +112,7 @@ async function getAiAnalysis(symbol: string, signal: 'Buy' | 'Sell', rsi: number
       ? `You are a crypto analyst. ${symbol} shows a BUY signal with HMA(8)=${hma8.toFixed(4)}, HMA(21)=${hma21.toFixed(4)}, RSI=${rsi.toFixed(2)}, Price=${price}. Return JSON: {"reasoning": "...(max 15 words)", "risk_level": "Low/Moderate/High", "movement_type": "Organic/Manipulation/Mixed", "trading_advice": "...", "warning_signs": "..."}`
       : `You are a crypto analyst. ${symbol} shows a SELL signal. Return JSON: {"reasoning": "...(max 15 words)", "risk_level": "Low/Moderate/High", "movement_type": "Organic/Manipulation/Mixed"}`;
 
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + GEMINI_API_KEY, {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=' + GEMINI_API_KEY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
