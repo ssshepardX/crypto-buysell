@@ -106,7 +106,7 @@ async function getAiAnalysis(symbol: string, signal: 'Buy' | 'Sell', rsi: number
       ? `You are a crypto analyst. ${symbol} shows a BUY signal with HMA(8)=${hma8.toFixed(4)}, HMA(21)=${hma21.toFixed(4)}, RSI=${rsi.toFixed(2)}, Price=${price}. Return JSON: {"reasoning": "...(max 15 words)", "risk_level": "Low/Moderate/High", "movement_type": "Organic/Manipulation/Mixed", "trading_advice": "...", "warning_signs": "..."}`
       : `You are a crypto analyst. ${symbol} shows a SELL signal. Return JSON: {"reasoning": "...(max 15 words)", "risk_level": "Low/Moderate/High", "movement_type": "Organic/Manipulation/Mixed"}`;
 
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + GEMINI_API_KEY, {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + GEMINI_API_KEY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -173,8 +173,30 @@ async function generateSignalForSymbol(symbol: string) {
     const signalType = isBuyTrigger ? 'Buy' : 'Sell';
     const aiAnalysis = await getAiAnalysis(symbol, signalType, lastRsi7, lastHma8, lastHma21, lastPrice);
 
-    // Insert signal to database (legacy signals table for backward compatibility)
-    const { error } = await supabase.from('signals').insert({
+    // Insert signal to pump_alerts table (main table)
+    const { error: pumpError } = await supabase.from('pump_alerts').insert({
+      symbol: symbol.replace('USDT', ''),
+      type: 'PUMP_ALERT',
+      price: lastPrice,
+      price_change: ((lastPrice - closePrices[closePrices.length - 2]) / closePrices[closePrices.length - 2]) * 100,
+      volume: volumes[volumes.length - 1],
+      avg_volume: avgVolume,
+      volume_multiplier: volumes[volumes.length - 1] / avgVolume,
+      detected_at: new Date().toISOString(),
+      market_state: 'bear_market',
+      whale_movement: (volumes[volumes.length - 1] / avgVolume) > 4.0,
+      ai_comment: aiAnalysis,
+      ai_fetched_at: new Date().toISOString(),
+      organic_probability: aiAnalysis?.isOrganic ? 80 : 20,
+      risk_analysis: aiAnalysis?.riskAnalysis
+    });
+
+    if (pumpError) {
+      console.error(`Error inserting pump alert for ${symbol}:`, pumpError);
+    }
+
+    // Also insert to signals table for backward compatibility
+    const { error: signalError } = await supabase.from('signals').insert({
       symbol: symbol.replace('USDT', ''),
       type: signalType,
       price: lastPrice,
@@ -184,9 +206,8 @@ async function generateSignalForSymbol(symbol: string) {
       ai_analysis: aiAnalysis
     });
 
-    if (error) {
-      console.error(`Error inserting signal for ${symbol}:`, error);
-      return null;
+    if (signalError) {
+      console.error(`Error inserting signal for ${symbol}:`, signalError);
     }
 
     console.log(`Signal generated for ${symbol}: ${signalType}`);
