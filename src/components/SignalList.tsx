@@ -60,7 +60,7 @@ const SignalList = () => {
 
   if (liveError) {
     console.error('SignalList error:', liveError);
-    return <div className="text-red-500">Failed to load signals</div>;
+    return <div className="text-red-500">Failed to load analysis</div>;
   }
 
   if (isLoading) {

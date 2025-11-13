@@ -18,22 +18,24 @@ interface SignalCardProps {
 }
 
 const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h, isFavorite, onToggleFavorite, signalData }) => {
-  const signal = signalData?.type || 'Hold';
-  const riskLevel = signalData?.ai_comment?.riskLevel;
-  const tradingAdvice = signalData?.ai_comment?.tradingAdvice;
+  const riskScore = signalData?.risk_score || 0;
+  const summary = signalData?.ai_comment?.summary || signalData?.summary;
+  const likelySource = signalData?.likely_source || signalData?.ai_comment?.likely_source;
+  const actionableInsight = signalData?.actionable_insight || signalData?.ai_comment?.actionable_insight;
   const volumeMultiplier = signalData?.volume_multiplier || 1;
 
-  const getSignalClasses = (currentSignal: string): string => {
-    if (currentSignal === 'Buy') return 'bg-green-600 hover:bg-green-700 text-white';
-    if (currentSignal === 'Sell') return 'bg-red-600 hover:bg-red-700 text-white';
-    return 'bg-gray-500 hover:bg-gray-600 text-white';
+  const getRiskColor = (score: number): string => {
+    if (score >= 80) return 'bg-red-600';
+    if (score >= 60) return 'bg-orange-600';
+    if (score >= 40) return 'bg-yellow-500';
+    return 'bg-green-500';
   };
-  
-  const getRiskColor = (riskLevel?: string) => {
-    if (riskLevel === 'Low') return 'bg-sky-500';
-    if (riskLevel === 'Medium') return 'bg-yellow-500';
-    if (riskLevel === 'High') return 'bg-orange-600';
-    return 'bg-gray-400';
+
+  const getRiskLabel = (score: number): string => {
+    if (score >= 80) return 'High Risk';
+    if (score >= 60) return 'Medium Risk';
+    if (score >= 40) return 'Low Risk';
+    return 'Safe';
   };
 
   const isPositiveChange = change24h >= 0;
@@ -67,53 +69,56 @@ const SignalCard: React.FC<SignalCardProps> = ({ name, symbol, price, change24h,
               <span>{change24h.toFixed(2)}%</span>
             </div>
           </div>
-          
-          {tradingAdvice && (
+
+          {summary && (
             <div className="text-xs text-muted-foreground flex items-start space-x-2 h-8">
-              <Sparkles className="h-3 w-3 mt-0.5 flex-shrink-0 text-purple-400" />
-              <p className="truncate">{tradingAdvice}</p>
+              <Shield className="h-3 w-3 mt-0.5 flex-shrink-0 text-orange-400" />
+              <p className="truncate">{summary}</p>
             </div>
           )}
 
-          {signal === 'Buy' && (
-            <div className="space-y-1 pt-1">
-              {/* Volume indicator with bars */}
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1">
-                  <Volume2 size={12} className="text-blue-500" />
-                  <div className="flex gap-0.5">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={cn(
-                          "w-1 rounded-sm",
-                          i < Math.min(volumeMultiplier / 0.5, 5)
-                            ? "bg-blue-500 h-2"
-                            : "bg-gray-300 h-1"
-                        )}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-blue-600 font-medium">{volumeMultiplier.toFixed(1)}x</span>
-                </div>
-                {riskLevel && (
-                  <Badge className={cn("text-white text-xs", getRiskColor(riskLevel))}>
-                    {riskLevel}
-                  </Badge>
-                )}
-              </div>
+          {likelySource && (
+            <div className="text-xs text-muted-foreground flex items-start space-x-2 h-6">
+              <TrendingUp className="h-3 w-3 mt-0.5 flex-shrink-0 text-blue-400" />
+              <p className="truncate">Source: {likelySource}</p>
             </div>
           )}
+
+          <div className="space-y-1 pt-1">
+            {/* Volume indicator with bars */}
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1">
+                <Volume2 size={12} className="text-blue-500" />
+                <div className="flex gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        "w-1 rounded-sm",
+                        i < Math.min(volumeMultiplier / 0.5, 5)
+                          ? "bg-blue-500 h-2"
+                          : "bg-gray-300 h-1"
+                      )}
+                    />
+                  ))}
+                </div>
+                <span className="text-blue-600 font-medium">{volumeMultiplier.toFixed(1)}x</span>
+              </div>
+              <Badge className={cn("text-white text-xs", getRiskColor(riskScore))}>
+                {getRiskLabel(riskScore)}
+              </Badge>
+            </div>
+          </div>
         </CardContent>
       </div>
       <CardFooter className="p-1 pt-2">
         {!signalData ? (
           <Skeleton className="h-8 w-full" />
         ) : (
-          <Badge 
-            className={cn('w-full justify-center py-1.5 text-sm', getSignalClasses(signal))}
+          <Badge
+            className={cn('w-full justify-center py-1.5 text-sm', getRiskColor(riskScore))}
           >
-            {signal}
+            Risk Score: {riskScore}/100
           </Badge>
         )}
       </CardFooter>

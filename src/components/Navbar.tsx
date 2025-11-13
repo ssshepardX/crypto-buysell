@@ -17,7 +17,7 @@ const Navbar = () => {
     <header className="w-full p-4 border-b border-white/10 sticky top-0 bg-background/80 backdrop-blur-sm z-50">
       <div className="container mx-auto flex justify-between items-center">
         <Link to="/" className="flex items-center space-x-2">
-          <img src="/logo.png" alt="Shepard Signals Logo" className="h-10" />
+          <img src="/logo.png" alt="Shepard AI Logo" className="h-10" />
         </Link>
         <nav className="hidden md:flex items-center space-x-2">
           <Link to="/pricing">
@@ -28,6 +28,12 @@ const Navbar = () => {
           </Link>
           <Link to="/contact">
             <Button variant="ghost">Contact</Button>
+          </Link>
+          <Link to="/terms">
+            <Button variant="ghost">Terms</Button>
+          </Link>
+          <Link to="/privacy">
+            <Button variant="ghost">Privacy</Button>
           </Link>
         </nav>
         <div className="flex items-center space-x-4">

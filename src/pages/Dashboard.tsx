@@ -55,7 +55,7 @@ const Dashboard = () => {
             Welcome, {session?.user?.email}
           </h1>
           <p className="text-muted-foreground">
-            Here's the latest analysis from our AI engine.
+            Real-time market anomaly detection and risk analysis powered by AI.
           </p>
         </div>
         
@@ -70,19 +70,19 @@ const Dashboard = () => {
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold mb-4">Active AI Signals</h2>
+          <h2 className="text-2xl font-semibold mb-4">AI Risk Analysis</h2>
           <SignalList />
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold mb-4">Trade History</h2>
+          <h2 className="text-2xl font-semibold mb-4">Analysis History</h2>
           <SignalHistory />
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold mb-4">Real-time Pump Detection</h2>
+          <h2 className="text-2xl font-semibold mb-4">Real-time Anomaly Detection</h2>
           <div className="mb-4 text-sm text-muted-foreground">
-            🔄 System automatically scans top 200 coins every minute for pump signals
+            🔄 System continuously monitors top 200 coins for market anomalies and provides AI-powered risk assessments
           </div>
           <PumpAlerts alerts={pumpAlerts} />
         </section>

@@ -10,23 +10,23 @@ import Head from "@/components/Head";
 const Index = () => {
   return (
     <div className="min-h-screen flex flex-col">
-      <Head 
-        title="Shepard Signals - AI-Powered Crypto Trading Signals"
-        description="Get accurate crypto trading signals powered by advanced AI algorithms. Maximize your profits with real-time market analysis and trading recommendations."
+      <Head
+        title="Shepard AI - The 'Why' Behind the Price"
+        description="Understand the real reasons behind crypto price movements with advanced AI analysis. Detect market anomalies, assess manipulation risks, and make informed trading decisions."
       />
       <Navbar />
       <main className="flex-grow">
         {/* Hero Section */}
         <section className="container mx-auto text-center pt-20 pb-12 lg:pt-32 lg:pb-20 animate-fade-in-up">
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4 text-foreground dark:bg-gradient-to-r dark:from-cyan-400 dark:to-purple-500 dark:text-transparent dark:bg-clip-text">
-            Boost Your Profits with AI-Powered Crypto Signals
+            The 'Why' Behind the Price
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
-            Let us handle the market analysis while you make the right moves at the right time. Power your investment strategy with our advanced algorithms.
+            Understand the real reasons behind crypto price movements. Our AI detects market anomalies, assesses manipulation risks, and provides actionable insights for informed trading decisions.
           </p>
           <Link to="/login">
             <Button size="lg" className="transition-all hover:shadow-[0_0_20px_theme(colors.cyan.500)]">
-              Get Started for Free
+              Start Analyzing Markets
             </Button>
           </Link>
         </section>
@@ -35,18 +35,18 @@ const Index = () => {
         <LivePriceTicker />
 
         {/* Features Section */}
-        <section 
+        <section
           className="bg-black bg-opacity-20 py-20 animate-fade-in-up"
           style={{ animationDelay: '0.2s' }}
         >
           <div className="container mx-auto grid md:grid-cols-3 gap-8 text-center">
             {[
-              { icon: <TrendingUp />, title: "High Win Rate", description: "Our AI strategy is developed for a high win rate, identifying the most promising trading opportunities." },
-              { icon: <ShieldCheck />, title: "Real-Time Analysis", description: "Fresh analysis is performed every 15 minutes to provide the most up-to-date signals." },
-              { icon: <Zap />, title: "Timely Alerts", description: "Receive timely alerts on potential market moves, so you're always prepared." }
+              { icon: <TrendingUp />, title: "Anomaly Detection", description: "Advanced AI algorithms detect unusual price and volume movements in real-time across 200+ cryptocurrencies." },
+              { icon: <ShieldCheck />, title: "Risk Assessment", description: "Comprehensive analysis of market manipulation risks, orderbook depth, and social sentiment for informed decisions." },
+              { icon: <Zap />, title: "Smart Alerts", description: "Receive intelligent notifications about market anomalies with actionable insights, not just price alerts." }
             ].map((feature, index) => (
-              <Card 
-                key={index} 
+              <Card
+                key={index}
                 className="bg-secondary/50 backdrop-blur-sm border-white/10 transition-all duration-300 hover:transform hover:-translate-y-2 hover:shadow-[0_0_25px_theme(colors.cyan.500/50%)]"
               >
                 <CardHeader>
