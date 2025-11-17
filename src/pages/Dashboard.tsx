@@ -17,7 +17,7 @@ const Dashboard = () => {
 
   // Background AI worker for processing analysis jobs
   const { isRunning: aiWorkerRunning } = useBackgroundAIWorker({
-    enabled: true,
+    enabled: false, // Temporarily disabled until RLS is fixed
     pollInterval: 5000, // Check every 5 seconds
     maxConcurrentJobs: 1
   });
