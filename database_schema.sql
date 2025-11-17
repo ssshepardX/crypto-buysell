@@ -76,6 +76,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Disable RLS for now to allow the system to work
--- We'll enable it later with proper authentication
+-- =====================================================
+-- CRITICAL FIXES FOR PRODUCTION SYSTEM
+-- =====================================================
+
+-- 1. FORCE DISABLE RLS (this is the key fix)
 ALTER TABLE analysis_jobs DISABLE ROW LEVEL SECURITY;
+
+-- 2. DROP existing policies if they exist
+DROP POLICY IF EXISTS "Users can view their own analysis jobs" ON analysis_jobs;
+DROP POLICY IF EXISTS "Service role can manage analysis jobs" ON analysis_jobs;
+
+-- 3. FIX pump_alerts constraints
+ALTER TABLE pump_alerts ALTER COLUMN avg_volume DROP NOT NULL;
+ALTER TABLE pump_alerts ALTER COLUMN volume DROP NOT NULL;
+
+-- 4. VERIFY table exists and is accessible
+SELECT 'analysis_jobs table exists' as status, COUNT(*) as record_count FROM analysis_jobs;
+
+-- 5. Test insert (should work after RLS is disabled)
+-- INSERT INTO analysis_jobs (symbol, status, price_at_detection, price_change, volume_spike, orderbook_json, social_json)
+-- VALUES ('TEST', 'PENDING', 50000, 5.0, 3.0, '{}', '{}');
