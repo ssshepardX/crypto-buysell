@@ -472,7 +472,7 @@ async function processPendingAnalysisJobs() {
   }
 }
 
-// Enhanced pre-filtering for anomalies (only send most promising cases to AI)
+// Scan for anomalies - matches pseudo code exactly
 async function scanCoinForAnomalies(symbol: string, config: MarketWatcherConfig) {
   try {
     // 3.1 Temel Veri Toplama
@@ -483,40 +483,21 @@ async function scanCoinForAnomalies(symbol: string, config: MarketWatcherConfig)
     const priceChange = ((parseFloat(priceData[1][4]) - parseFloat(priceData[0][4])) / parseFloat(priceData[0][4])) * 100;
     const volumeSpike = parseFloat(priceData[1][7]) / avgVolume;
 
-    // 3.2 ENHANCED ANOMALİ TETİKLEYİCİSİ (More Strict Filtering)
-    const meetsBasicCriteria = priceChange >= config.priceChangeThreshold && volumeSpike >= config.volumeMultiplier;
-
-    if (!meetsBasicCriteria) {
+    // 3.2 ANOMALİ TETİKLEYİCİSİ - Exact match to pseudo code
+    if (priceChange <= config.priceChangeThreshold || volumeSpike <= config.volumeMultiplier) {
       return null; // Anomali yok, devam et
     }
 
-    // 3.3 ADDITIONAL PRE-FILTERING (Only send most promising cases)
-    // Get more data for better filtering
-    const [orderbookData, currentPrice] = await Promise.all([
-      getOrderbookDepth(symbol, 2.0),
-      getCurrentPrice(symbol)
+    // PİVOT NOKTASI 1: VERİ ZENGİNLEŞTİRME
+    // (Bu API'lar hızlı olduğu varsayılır, AI'dan farklı olarak)
+    const [orderbookData, socialData] = await Promise.all([
+      getOrderbookDepth(symbol, 2.0), // +/- %2
+      getSocialMentions(symbol, '10m')
     ]);
 
-    // Additional filters to reduce AI calls
-    const isSignificantVolume = volumeSpike >= config.volumeMultiplier * 1.5; // 3.75x instead of 2.5x
-    const isSignificantPriceMove = Math.abs(priceChange) >= config.priceChangeThreshold * 1.5; // 4.5% instead of 3%
-    const hasThinOrderbook = orderbookData?.is_thin === true; // Thin orderbook = higher risk
-    const isHighVolumeCoin = avgVolume > 1000000; // Only large volume coins
-
-    // Only create AI job for HIGH-POTENTIAL anomalies
-    const shouldSendToAI = (isSignificantVolume && isSignificantPriceMove) ||
-                          (hasThinOrderbook && volumeSpike >= config.volumeMultiplier * 2) ||
-                          (isHighVolumeCoin && priceChange >= config.priceChangeThreshold * 2);
-
-    if (!shouldSendToAI) {
-      console.log(`Skipping ${symbol}: volume=${volumeSpike.toFixed(1)}x, price=${priceChange.toFixed(2)}%, thin=${hasThinOrderbook}`);
-      return null;
-    }
-
-    // 3.4 HIZLI VERİ ZENGİNLEŞTİRME (Only for promising cases)
-    const socialData = await getSocialMentions(symbol, '10m');
-
-    // YENİ ADIM: GÖREV OLUŞTURMA (AI'ı BEKLEMEZ)
+    // YENİ ADIM: GÖREV OLUŞTURMA
+    // AI'ı çağırmak yerine, veritabanına bir "iş emri" giriyoruz.
+    // Bu fonksiyon AI'ı BEKLEMEZ.
     const job = await createAnalysisJob(
       symbol,
       priceChange,
@@ -526,7 +507,6 @@ async function scanCoinForAnomalies(symbol: string, config: MarketWatcherConfig)
       parseFloat(priceData[1][4])
     );
 
-    console.log(`Created AI job for ${symbol}: ${volumeSpike.toFixed(1)}x volume, ${priceChange.toFixed(2)}% price change`);
     return job ? { symbol, jobCreated: true } : null;
 
   } catch (error) {

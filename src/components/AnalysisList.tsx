@@ -105,23 +105,13 @@ const AnalysisList = () => {
 const AnalysisCardWrapper = ({ coin, isFavorite, onToggleFavorite }: AnalysisCardWrapperProps) => {
   const { data: analysisData, isLoading: isAnalysisLoading } = usePumpAlerts(coin.symbol);
 
-  if (isAnalysisLoading) {
-    return <Skeleton className="h-[280px] w-full" />;
-  }
-
-  // Type guard: ensure analysisData is not null
-  if (!analysisData) {
+  // Don't show loading skeletons - only show real analysis results
+  if (isAnalysisLoading || !analysisData) {
     return null;
   }
 
-  // Show all AI_ANALYSIS types (anomalies detected)
-  const isAnomalyAnalysis = analysisData.type === 'AI_ANALYSIS';
-  const isBasicAnomaly = analysisData.type === 'BASIC_ANOMALY';
-
-  // Only show analysis results
-  const shouldShow = isAnomalyAnalysis || isBasicAnomaly;
-
-  if (!shouldShow) {
+  // Only show AI_ANALYSIS types (completed analyses)
+  if (analysisData.type !== 'AI_ANALYSIS') {
     return null;
   }
 
