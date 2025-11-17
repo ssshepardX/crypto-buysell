@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { notificationService } from './notificationService';
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-exp:generateContent';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 interface OrderbookData {
   total_bids_usd: number;

@@ -13,7 +13,7 @@ Bu proje, pseudo kodunuza tam uyumlu olarak geliştirilmiş bir kripto piyasa iz
 - Otomatik tarama (60 saniye aralıklar)
 
 ### 2. **AI Analiz Sistemi**
-- Gemini AI entegrasyonu
+- Gemini 1.5 Flash AI entegrasyonu (maliyet optimizasyonu için)
 - Asenkron iş kuyruğu sistemi (non-blocking)
 - 15 dakikalık önbellek (cache) mekanizması
 - Otomatik background worker
