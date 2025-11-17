@@ -321,8 +321,159 @@ Sadece JSON çıktısı ver. Başka hiçbir açıklama yapma.`;
   };
 }
 
-// Analyze coin for anomalies (new main logic)
-async function analyzeCoinAnomaly(symbol: string, config: MarketWatcherConfig) {
+// Create analysis job (fast process - no AI call)
+async function createAnalysisJob(
+  symbol: string,
+  priceChange: number,
+  volumeSpike: number,
+  orderbookData: { total_bids_usd: number; total_asks_usd: number; depth_usd: number; is_thin: boolean } | null,
+  socialData: { mention_increase_percent: number; sentiment: string },
+  price: number
+) {
+  try {
+    // Check if there's already a recent job for this symbol (caching)
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+
+    const { data: existingJob } = await supabase
+      .from('analysis_jobs')
+      .select('id')
+      .eq('symbol', symbol.replace('USDT', ''))
+      .gte('created_at', fifteenMinutesAgo)
+      .limit(1);
+
+    if (existingJob && existingJob.length > 0) {
+      console.log(`Job for ${symbol} already in queue. Skipping.`);
+      return null;
+    }
+
+    // Create new analysis job
+    const { data, error } = await supabase
+      .from('analysis_jobs')
+      .insert({
+        symbol: symbol.replace('USDT', ''),
+        status: 'PENDING',
+        price_at_detection: price,
+        price_change: priceChange,
+        volume_spike: volumeSpike,
+        orderbook_json: JSON.stringify(orderbookData),
+        social_json: JSON.stringify(socialData),
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error(`Error creating analysis job for ${symbol}:`, error);
+      return null;
+    }
+
+    console.log(`AI analysis job created for ${symbol}`);
+    return data;
+  } catch (error) {
+    console.error(`Error in createAnalysisJob for ${symbol}:`, error);
+    return null;
+  }
+}
+
+// Process pending analysis jobs (background AI worker)
+async function processPendingAnalysisJobs() {
+  try {
+    // Find pending job
+    const { data: job, error: findError } = await supabase
+      .from('analysis_jobs')
+      .select('*')
+      .eq('status', 'PENDING')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .single();
+
+    if (findError || !job) {
+      return null; // No pending jobs
+    }
+
+    // Mark as processing
+    await supabase
+      .from('analysis_jobs')
+      .update({ status: 'PROCESSING' })
+      .eq('id', job.id);
+
+    console.log(`Processing job for ${job.symbol}`);
+
+    try {
+      // Parse stored data
+      const orderbookData = JSON.parse(job.orderbook_json || '{}');
+      const socialData = JSON.parse(job.social_json || '{}');
+
+      // Call AI analysis
+      const aiAnalysisResult = await getGeminiStructuredAnalysis(
+        job.symbol + 'USDT',
+        job.price_change,
+        job.volume_spike,
+        orderbookData,
+        socialData
+      );
+
+      // Update job with results
+      await supabase
+        .from('analysis_jobs')
+        .update({
+          status: 'COMPLETED',
+          risk_score: aiAnalysisResult.risk_score,
+          summary: aiAnalysisResult.summary,
+          likely_source: aiAnalysisResult.likely_source,
+          actionable_insight: aiAnalysisResult.actionable_insight,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', job.id);
+
+      // Also save to pump_alerts for UI display
+      await supabase.from('pump_alerts').insert({
+        symbol: job.symbol,
+        type: 'AI_ANALYSIS',
+        price: job.price_at_detection,
+        price_change: job.price_change,
+        volume: 0, // Will be calculated from volume_spike if needed
+        volume_multiplier: job.volume_spike,
+        detected_at: job.created_at,
+        market_state: 'bear_market',
+        orderbook_depth: orderbookData?.depth_usd || null,
+        ai_comment: aiAnalysisResult,
+        ai_fetched_at: new Date().toISOString(),
+        risk_score: aiAnalysisResult.risk_score,
+        likely_source: aiAnalysisResult.likely_source,
+        actionable_insight: aiAnalysisResult.actionable_insight
+      });
+
+      // Send notification
+      const notificationTitle = `⚠️ $${job.symbol}USDT High Risk Alert (Score: ${aiAnalysisResult.risk_score})`;
+      const notificationBody = aiAnalysisResult.summary;
+
+      console.log(`Job completed for ${job.symbol}: Risk Score ${aiAnalysisResult.risk_score}`);
+
+      return {
+        symbol: job.symbol,
+        risk_score: aiAnalysisResult.risk_score,
+        analysis: aiAnalysisResult
+      };
+
+    } catch (aiError) {
+      console.error(`AI processing error for job ${job.id}:`, aiError);
+      // Mark as failed
+      await supabase
+        .from('analysis_jobs')
+        .update({ status: 'FAILED' })
+        .eq('id', job.id);
+      return null;
+    }
+
+  } catch (error) {
+    console.error('Error in processPendingAnalysisJobs:', error);
+    return null;
+  }
+}
+
+// Scan coin for anomalies (fast process - creates jobs)
+async function scanCoinForAnomalies(symbol: string, config: MarketWatcherConfig) {
   try {
     // 3.1 Temel Veri Toplama
     const priceData = await fetchBinanceKlines(symbol, '1m', 2); // Son 2 mum
@@ -337,84 +488,26 @@ async function analyzeCoinAnomaly(symbol: string, config: MarketWatcherConfig) {
       return null; // Anomali yok, devam et
     }
 
-    // PİVOT NOKTASI 1: VERİ ZENGİNLEŞTİRME
+    // 3.3 HIZLI VERİ ZENGİNLEŞTİRME
     const [orderbookData, socialData] = await Promise.all([
       getOrderbookDepth(symbol, 2.0), // +/- %2
       getSocialMentions(symbol, '10m')
     ]);
 
-    // 3.3 AKILLI ANALİZ
-    if (config.aiEnabled) {
-      const aiAnalysisResult = await getGeminiStructuredAnalysis(
-        symbol,
-        priceChange,
-        volumeSpike,
-        orderbookData,
-        socialData
-      );
+    // YENİ ADIM: GÖREV OLUŞTURMA (AI'ı BEKLEMEZ)
+    const job = await createAnalysisJob(
+      symbol,
+      priceChange,
+      volumeSpike,
+      orderbookData,
+      socialData,
+      parseFloat(priceData[1][4])
+    );
 
-      // PİVOT NOKTASI 2: DEPOLAMA VE BİLDİRİM
-      // Artık "PUMP_ALERT" değil, "AI_ANALYSIS" kaydediyoruz
-      const { error: analysisError } = await supabase.from('pump_alerts').insert({
-        symbol: symbol.replace('USDT', ''),
-        type: 'AI_ANALYSIS', // Changed from PUMP_ALERT
-        price: parseFloat(priceData[1][4]),
-        price_change: priceChange,
-        volume: parseFloat(priceData[1][7]),
-        avg_volume: avgVolume,
-        volume_multiplier: volumeSpike,
-        detected_at: new Date().toISOString(),
-        market_state: 'bear_market',
-        orderbook_depth: orderbookData?.depth_usd || null,
-        ai_comment: aiAnalysisResult,
-        ai_fetched_at: new Date().toISOString(),
-        risk_score: aiAnalysisResult.risk_score,
-        likely_source: aiAnalysisResult.likely_source,
-        actionable_insight: aiAnalysisResult.actionable_insight
-      });
+    return job ? { symbol, jobCreated: true } : null;
 
-      if (analysisError) {
-        console.error(`Error saving AI analysis for ${symbol}:`, analysisError);
-        return null;
-      }
-
-      // b) Akıllı Bildirim Gönder
-      const notificationTitle = `⚠️ $${symbol.replace('USDT', '')}USDT Yüksek Risk Uyarısı (Skor: ${aiAnalysisResult.risk_score})`;
-      const notificationBody = aiAnalysisResult.summary;
-
-      console.log(`AI Analysis completed for ${symbol}: Risk Score ${aiAnalysisResult.risk_score}`);
-      console.log(`Notification: ${notificationTitle}`);
-      console.log(`Summary: ${notificationBody}`);
-
-      return {
-        symbol,
-        risk_score: aiAnalysisResult.risk_score,
-        analysis: aiAnalysisResult
-      };
-    } else {
-      // AI kapalıysa basit sinyal gönder
-      const { error: signalError } = await supabase.from('pump_alerts').insert({
-        symbol: symbol.replace('USDT', ''),
-        type: 'BASIC_ANOMALY',
-        price: parseFloat(priceData[1][4]),
-        price_change: priceChange,
-        volume: parseFloat(priceData[1][7]),
-        avg_volume: avgVolume,
-        volume_multiplier: volumeSpike,
-        detected_at: new Date().toISOString(),
-        market_state: 'bear_market'
-      });
-
-      if (signalError) {
-        console.error(`Error saving basic anomaly for ${symbol}:`, signalError);
-        return null;
-      }
-
-      console.log(`Basic anomaly detected for ${symbol}: ${priceChange.toFixed(2)}% price change, ${volumeSpike.toFixed(1)}x volume`);
-      return { symbol, basic: true };
-    }
   } catch (error) {
-    console.error(`Error analyzing ${symbol}:`, error);
+    console.error(`Error scanning ${symbol}:`, error);
     return null;
   }
 }
@@ -446,7 +539,7 @@ export const useGenerateSignals = (config: Partial<MarketWatcherConfig> = {}) =>
       // Process coins sequentially to avoid rate limits
       for (let i = 0; i < coinsToProcess.length; i++) {
         const coin = coinsToProcess[i];
-        const result = await analyzeCoinAnomaly(coin, finalConfig);
+        const result = await scanCoinForAnomalies(coin, finalConfig);
 
         if (result) {
           signalsGenerated++;
@@ -456,6 +549,13 @@ export const useGenerateSignals = (config: Partial<MarketWatcherConfig> = {}) =>
 
         // Small delay between requests to avoid rate limits
         await new Promise(resolve => setTimeout(resolve, 100)); // Reduced delay for 1m scans
+      }
+
+      // Process any pending AI jobs in background
+      if (finalConfig.aiEnabled) {
+        processPendingAnalysisJobs().catch(error =>
+          console.error('Background AI processing error:', error)
+        );
       }
 
       console.log(`Signal generation completed: ${signalsGenerated} signals generated from ${coinsToProcess.length} coins`);

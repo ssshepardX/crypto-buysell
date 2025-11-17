@@ -7,12 +7,20 @@ import AnalysisHistory from "@/components/AnalysisHistory";
 import TrendingCoins from "@/components/TrendingCoins";
 import PumpAlerts from "@/components/PumpAlerts";
 import { useGenerateSignals } from "@/hooks/useGenerateSignals";
+import { useBackgroundAIWorker } from "@/hooks/useBackgroundAIWorker";
 
 const Dashboard = () => {
   const { session, loading } = useSession();
 
   // Generate signals when dashboard loads
   const { isGenerating, progress, lastGenerated } = useGenerateSignals();
+
+  // Background AI worker for processing analysis jobs
+  const { isRunning: aiWorkerRunning } = useBackgroundAIWorker({
+    enabled: true,
+    pollInterval: 5000, // Check every 5 seconds
+    maxConcurrentJobs: 1
+  });
 
   if (loading) {
     return (
