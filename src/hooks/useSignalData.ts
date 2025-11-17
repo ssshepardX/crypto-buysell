@@ -4,14 +4,16 @@ import { supabase } from '@/integrations/supabase/client';
 export interface PumpAlert {
   id: string;
   symbol: string;
-  type: string; // 'PUMP_ALERT'
+  type: string; // 'AI_ANALYSIS', 'BASIC_ANOMALY', or 'PUMP_ALERT'
   price: number;
   price_change: number;
   volume: number;
-  avg_volume: number;
-  volume_multiplier: number;
+  avg_volume?: number;
+  volume_multiplier?: number;
+  volume_24h_change?: number;
   detected_at: string;
   ai_comment?: {
+    // Legacy AI comment structure
     isOrganic: boolean;
     whaleMovementProbability: number;
     riskLevel: 'Low' | 'Moderate' | 'High' | 'Critical';
@@ -19,12 +21,23 @@ export interface PumpAlert {
     tradingAdvice: string;
     warningSignals: string[];
     marketState: string;
+  } | {
+    // New AI analysis structure
+    risk_score: number;
+    summary: string;
+    likely_source: string;
+    actionable_insight: string;
   };
   ai_fetched_at?: string;
   market_state?: string;
+  market_cap?: number;
+  orderbook_depth?: number;
   organic_probability?: number;
-  whale_movement: boolean;
-  risk_analysis?: string;
+  whale_movement?: boolean;
+  risk_score?: number;
+  likely_source?: string;
+  actionable_insight?: string;
+  risk_analysis?: string | number;
 }
 
 export const usePumpAlerts = (symbol?: string) => {

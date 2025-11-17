@@ -1,34 +1,18 @@
 import Navbar from "@/components/Navbar";
-import SignalList from "@/components/SignalList";
+import AnalysisList from "@/components/AnalysisList";
 import { useSession } from "@/contexts/SessionContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import WinRateTracker from "@/components/WinRateTracker";
-import SignalHistory from "@/components/SignalHistory";
+import AnalysisHistory from "@/components/AnalysisHistory";
 import TrendingCoins from "@/components/TrendingCoins";
 import PumpAlerts from "@/components/PumpAlerts";
 import { useGenerateSignals } from "@/hooks/useGenerateSignals";
-import { useMarketWatcher } from "@/hooks/useMarketWatcher";
 
 const Dashboard = () => {
   const { session, loading } = useSession();
 
   // Generate signals when dashboard loads
-  useGenerateSignals();
-
-  // Market watcher for pump detection
-  const {
-    isWatching,
-    lastScan,
-    pumpAlerts,
-    startWatching,
-    stopWatching,
-    scanForPumps
-  } = useMarketWatcher({
-    enabled: true,
-    interval: 60, // 1 minute
-    aiEnabled: true,
-    maxCoins: 100
-  });
+  const { isGenerating, progress, lastGenerated } = useGenerateSignals();
 
   if (loading) {
     return (
@@ -71,20 +55,35 @@ const Dashboard = () => {
 
         <section>
           <h2 className="text-2xl font-semibold mb-4">AI Risk Analysis</h2>
-          <SignalList />
+          <AnalysisList />
         </section>
 
         <section>
           <h2 className="text-2xl font-semibold mb-4">Analysis History</h2>
-          <SignalHistory />
+          <AnalysisHistory />
         </section>
 
         <section>
           <h2 className="text-2xl font-semibold mb-4">Real-time Anomaly Detection</h2>
           <div className="mb-4 text-sm text-muted-foreground">
             🔄 System continuously monitors top 200 coins for market anomalies and provides AI-powered risk assessments
+            {isGenerating && (
+              <div className="mt-2">
+                <div className="text-xs">Scanning progress: {progress.current}/{progress.total}</div>
+                <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+            {lastGenerated && (
+              <div className="mt-1 text-xs text-gray-500">
+                Last scan: {lastGenerated.toLocaleTimeString()}
+              </div>
+            )}
           </div>
-          <PumpAlerts alerts={pumpAlerts} />
         </section>
 
       </main>
