@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { getTop200CoinsByVolume } from '@/services/binanceService';
 
+// Clean implementation following pseudo code exactly
 type BinanceKline = [
   number, // 0: Open time
   string, // 1: Open
@@ -19,24 +20,29 @@ type BinanceKline = [
 
 export interface MarketWatcherConfig {
   maxCoins: number;
-  interval: '1m'; // Fixed to 1m for real-time anomaly detection
+  interval: '1m';
   enabled: boolean;
-  volumeMultiplier: number; // 2.5 - Anomaly trigger
-  priceChangeThreshold: number; // 0.03 - 3% anomaly trigger
+  volumeMultiplier: number;
+  priceChangeThreshold: number;
   aiEnabled: boolean;
-  scanInterval: number; // 60 seconds for continuous monitoring
+  scanInterval: number;
   autoScan?: boolean;
 }
 
 const DEFAULT_CONFIG: MarketWatcherConfig = {
-  maxCoins: 200,
+  maxCoins: 10, // Start with just 10 coins for testing
   interval: '1m',
   enabled: true,
   volumeMultiplier: 2.5,
-  priceChangeThreshold: 0.03, // 3%
+  priceChangeThreshold: 0.03,
   aiEnabled: true,
-  scanInterval: 60 * 1000 // 60 seconds
+  scanInterval: 60 * 1000
 };
+
+const COINS = ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'SHIB', 'AVAX', 'LINK', 'DOT'];
+const INTERVAL = '1m';
+const VOLUME_MULTIPLIER = 2.5;
+const PRICE_CHANGE_THRESHOLD = 0.03;
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
