@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { getTop200CoinsByVolume } from '@/services/binanceService';
+import { aiWorkerService } from '@/services/aiWorkerService';
+import { notificationService } from '@/services/notificationService';
 
 // Clean implementation following pseudo code exactly
 type BinanceKline = [
@@ -328,6 +330,7 @@ Sadece JSON çıktısı ver. Başka hiçbir açıklama yapma.`;
 }
 
 // Create analysis job (fast process - no AI call)
+// 3.3 MALİYET KONTROLÜ: ÖNBELLEK (CACHE) KONTROLÜ
 async function createAnalysisJob(
   symbol: string,
   priceChange: number,
@@ -338,21 +341,24 @@ async function createAnalysisJob(
 ) {
   try {
     // Check if there's already a recent job for this symbol (caching)
+    // Bu coin için son 15dk içinde analiz yapılmış mı?
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
 
     const { data: existingJob } = await supabase
       .from('analysis_jobs')
-      .select('id')
+      .select('id, status')
       .eq('symbol', symbol.replace('USDT', ''))
       .gte('created_at', fifteenMinutesAgo)
+      .order('created_at', { ascending: false })
       .limit(1);
 
     if (existingJob && existingJob.length > 0) {
-      console.log(`Job for ${symbol} already in queue. Skipping.`);
+      console.log(`📋 Önbellekte analiz bulundu: ${symbol} - Atlanıyor`);
       return null;
     }
 
     // Create new analysis job
+    console.log(`📝 Yeni analiz görevi oluşturuluyor: ${symbol}`);
     const { data, error } = await supabase
       .from('analysis_jobs')
       .insert({
@@ -369,14 +375,14 @@ async function createAnalysisJob(
       .single();
 
     if (error) {
-      console.error(`Error creating analysis job for ${symbol}:`, error);
+      console.error(`❌ Analiz görevi oluşturulamadı ${symbol}:`, error);
       return null;
     }
 
-    console.log(`AI analysis job created for ${symbol}`);
+    console.log(`✅ AI analiz görevi kuyruğa alındı: ${symbol}`);
     return data;
   } catch (error) {
-    console.error(`Error in createAnalysisJob for ${symbol}:`, error);
+    console.error(`❌ createAnalysisJob hatası ${symbol}:`, error);
     return null;
   }
 }
@@ -479,44 +485,59 @@ async function processPendingAnalysisJobs() {
 }
 
 // Scan for anomalies - matches pseudo code exactly
+// 3. ANA "ALL-IN-ONE" FONKSİYON - startMarketWatcher() içindeki döngü mantığı
 async function scanCoinForAnomalies(symbol: string, config: MarketWatcherConfig) {
   try {
-    // 3.1 Temel Veri Toplama
-    const priceData = await fetchBinanceKlines(symbol, '1m', 2); // Son 2 mum
-    if (!priceData || priceData.length < 2) return null;
+    // 3.1 Temel Veri Toplama (Basic Data Collection)
+    const priceData = await fetchBinanceKlines(symbol, '1m', 21); // Son 21 mum (20 avg + 1 current)
+    if (!priceData || priceData.length < 21) return null;
 
     const avgVolume = await getAvgVolume(symbol, 20);
-    const priceChange = ((parseFloat(priceData[1][4]) - parseFloat(priceData[0][4])) / parseFloat(priceData[0][4])) * 100;
-    const volumeSpike = parseFloat(priceData[1][7]) / avgVolume;
+    if (avgVolume === 0) return null;
 
-    // 3.2 ANOMALİ TETİKLEYİCİSİ - Exact match to pseudo code
+    const lastCandle = priceData[priceData.length - 1];
+    const openPrice = parseFloat(lastCandle[1]);
+    const closePrice = parseFloat(lastCandle[4]);
+    const currentVolume = parseFloat(lastCandle[7]);
+    
+    const priceChange = ((closePrice - openPrice) / openPrice) * 100;
+    const volumeSpike = currentVolume / avgVolume;
+
+    // 3.2 ANOMALİ TESPİTİ (ANOMALY DETECTION) - Sizin Filtreniz
     if (priceChange <= config.priceChangeThreshold || volumeSpike <= config.volumeMultiplier) {
       return null; // Anomali yok, devam et
     }
 
-    // PİVOT NOKTASI 1: VERİ ZENGİNLEŞTİRME
-    // (Bu API'lar hızlı olduğu varsayılır, AI'dan farklı olarak)
+    console.log(`🚨 Anomali tespit edildi: ${symbol} | Fiyat: +${priceChange.toFixed(2)}% | Hacim: ${volumeSpike.toFixed(1)}x`);
+
+    // 3.4 VERİ ZENGİNLEŞTİRME (DATA ENRICHMENT) - AI için Bağlam
+    console.log(`📊 ${symbol} için veriler zenginleştiriliyor...`);
     const [orderbookData, socialData] = await Promise.all([
       getOrderbookDepth(symbol, 2.0), // +/- %2
       getSocialMentions(symbol, '10m')
     ]);
 
-    // YENİ ADIM: GÖREV OLUŞTURMA
+    // 3.5 AI ANALİZİ - GÖREV OLUŞTURMA (Job Creation)
     // AI'ı çağırmak yerine, veritabanına bir "iş emri" giriyoruz.
-    // Bu fonksiyon AI'ı BEKLEMEZ.
+    // Bu fonksiyon AI'ı BEKLEMEZ - Non-blocking!
+    console.log(`🤖 ${symbol} için AI analiz görevi oluşturuluyor...`);
     const job = await createAnalysisJob(
       symbol,
       priceChange,
       volumeSpike,
       orderbookData,
       socialData,
-      parseFloat(priceData[1][4])
+      closePrice
     );
 
-    return job ? { symbol, jobCreated: true } : null;
+    if (job) {
+      console.log(`✅ ${symbol} için analiz görevi oluşturuldu - Kuyrukta bekliyor`);
+    }
+
+    return job ? { symbol, jobCreated: true, priceChange, volumeSpike } : null;
 
   } catch (error) {
-    console.error(`Error scanning ${symbol}:`, error);
+    console.error(`❌ ${symbol} tarama hatası:`, error);
     return null;
   }
 }
@@ -536,58 +557,79 @@ export const useGenerateSignals = (config: Partial<MarketWatcherConfig> = {}) =>
 
     try {
       // Get top coins dynamically
-      console.log(`Fetching top ${finalConfig.maxCoins} coins by volume...`);
+      console.log(`🔍 Top ${finalConfig.maxCoins} coin hacim bazlı getiriliyor...`);
       const topCoins = await getTop200CoinsByVolume();
       const coinsToProcess = topCoins.slice(0, finalConfig.maxCoins).map(coin => coin.symbol);
 
-      console.log(`Starting signal generation for ${coinsToProcess.length} coins using ${finalConfig.interval} interval...`);
+      console.log(`🚀 Piyasa Gözetmeni Başlatıldı - ${coinsToProcess.length} coin taranacak (${finalConfig.interval} aralık)`);
       setProgress({ current: 0, total: coinsToProcess.length });
 
-      let signalsGenerated = 0;
+      let anomaliesDetected = 0;
+      let jobsCreated = 0;
 
       // Process coins sequentially to avoid rate limits
+      // 3. ANA "ALL-IN-ONE" FONKSİYON - startMarketWatcher() while True döngüsü
       for (let i = 0; i < coinsToProcess.length; i++) {
         const coin = coinsToProcess[i];
-        const result = await scanCoinForAnomalies(coin, finalConfig);
+        
+        try {
+          const result = await scanCoinForAnomalies(coin, finalConfig);
 
-        if (result) {
-          signalsGenerated++;
+          if (result) {
+            anomaliesDetected++;
+            if (result.jobCreated) {
+              jobsCreated++;
+            }
+          }
+        } catch (error) {
+          console.error(`❌ ${coin} için ana döngüde hata:`, error);
         }
 
         setProgress({ current: i + 1, total: coinsToProcess.length });
 
         // Small delay between requests to avoid rate limits
-        await new Promise(resolve => setTimeout(resolve, 100)); // Reduced delay for 1m scans
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      // Process any pending AI jobs in background
-      if (finalConfig.aiEnabled) {
-        processPendingAnalysisJobs().catch(error =>
-          console.error('Background AI processing error:', error)
-        );
-      }
-
-      console.log(`Signal generation completed: ${signalsGenerated} signals generated from ${coinsToProcess.length} coins`);
+      console.log(`📊 Tarama tamamlandı: ${coinsToProcess.length} coin tarandı`);
+      console.log(`🎯 ${anomaliesDetected} anomali tespit edildi`);
+      console.log(`📝 ${jobsCreated} AI analiz görevi oluşturuldu`);
+      
       setLastGenerated(new Date());
 
     } catch (error) {
-      console.error('Error in signal generation:', error);
+      console.error('❌ Sinyal üretiminde hata:', error);
     } finally {
       setIsGenerating(false);
     }
   };
 
   useEffect(() => {
+    // Initialize notification service
+    notificationService.requestPermission().then(granted => {
+      if (granted) {
+        console.log('✅ Bildirim izinleri alındı');
+      }
+    });
+
+    // Start AI worker service if AI is enabled
+    if (finalConfig.aiEnabled) {
+      console.log('🤖 AI Worker Service başlatılıyor...');
+      aiWorkerService.start(5000); // Check every 5 seconds
+    }
+
     // Auto-generate signals on mount if enabled
     if (finalConfig.enabled) {
+      console.log('🎬 İlk tarama başlatılıyor...');
       generateSignals();
     }
 
     // Set up auto scan interval if enabled
     let intervalId: NodeJS.Timeout | null = null;
     if (finalConfig.enabled && finalConfig.autoScan && finalConfig.scanInterval) {
+      console.log(`⏰ Otomatik tarama aktif: Her ${finalConfig.scanInterval / 1000} saniyede bir`);
       intervalId = setInterval(() => {
-        console.log('Auto scan: Generating signals...');
+        console.log('🔄 Otomatik tarama: Yeni sinyal üretimi başlatılıyor...');
         generateSignals();
       }, finalConfig.scanInterval);
     }
@@ -596,9 +638,13 @@ export const useGenerateSignals = (config: Partial<MarketWatcherConfig> = {}) =>
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
+        console.log('⏹️ Otomatik tarama durduruldu');
+      }
+      if (finalConfig.aiEnabled) {
+        aiWorkerService.stop();
       }
     };
-  }, [finalConfig.enabled, finalConfig.autoScan, finalConfig.scanInterval]);
+  }, [finalConfig.enabled, finalConfig.autoScan, finalConfig.scanInterval, finalConfig.aiEnabled]);
 
   return {
     generateSignals,
