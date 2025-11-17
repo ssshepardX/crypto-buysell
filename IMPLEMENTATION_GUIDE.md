@@ -42,64 +42,88 @@ src/
 └── ...
 ```
 
-## 🔄 Sistem Akışı (Pseudo Koda Tam Uyumlu)
+## 🔄 Sistem Akışı (Yeni Mimari - İki Süreç)
 
-### Adım 1: Başlangıç (Initialization)
+### **PROSESS 1: MARKET WATCHER (Piyasa Gözetmeni)**
 ```typescript
-// useGenerateSignals hook çağrıldığında:
-1. Bildirim izinleri istenir
-2. AI Worker Service başlatılır (5 saniye aralıkla kontrol)
-3. İlk tarama tetiklenir
-4. Otomatik tarama timer'ı ayarlanır (60 saniye)
+function startMarketWatcher():
+  log("Piyasa Gözetmeni Başlatıldı...")
+  while True:
+    for coin in COINS:
+      try:
+        // 3.1 Temel Veri Toplama
+        priceData = getBinanceKline(coin, INTERVAL)
+        if not priceData: continue
+        avgVolume = getAvgVolume(coin, 20)
+        priceChange = calculatePercentChange(priceData.close, priceData.open)
+        volumeSpike = priceData.volume_last_candle / avgVolume
+
+        // 3.2 ANOMALİ TESPİTİ
+        if priceChange > PRICE_CHANGE_THRESHOLD and volumeSpike > VOLUME_MULTIPLIER:
+          // 3.3 GÜVENİRLİK ve MALİYET KONTROLÜ
+          if findRecentJob(coin, CACHE_DURATION_MINUTES):
+            continue // Önbellekte var, atla
+
+          log("Anomali tespit edildi: " + coin)
+
+          // 3.4 HIZLI Veri Zenginleştirme
+          orderbookData = getOrderbookDepth(coin, 2.0)
+          socialData = getSocialMentions(coin, "10m")
+
+          // 3.5 AI İŞ EMRİ OLUŞTUR
+          createAnalysisJob(coin, priceChange, volumeSpike, orderbookData, socialData, priceData.close)
+          // AI'ı BEKLEMEZ - Non-blocking!
+
+      except Exception as e:
+        log(coin + " için Gözetmen hatası: " + e)
+
+    // Tüm coinler tarandı, 60 saniye bekle
+    log(COINS.length + " coin tarandı. 60 saniye bekleniyor...")
+    sleep(60)
 ```
 
-### Adım 2: Piyasa Taraması (Market Scan)
+### **PROSESS 2: AI AGENT WORKER (AI Analist)**
 ```typescript
-function scanCoinForAnomalies(symbol, config):
-  // 3.1 Temel Veri Toplama
-  - Son 21 mum verisi çekilir (1 dakikalık)
-  - Ortalama hacim hesaplanır (20 periyot)
-  - Fiyat değişimi ve hacim çarpanı hesaplanır
-  
-  // 3.2 Anomali Tespiti
-  if (priceChange > %3 AND volumeSpike > 2.5x):
-    🚨 Anomali tespit edildi!
-    
-    // 3.3 Önbellek Kontrolü
-    - Son 15 dakikada bu coin için analiz var mı?
-    - Varsa: ATLA (AI maliyetinden kaçın)
-    
-    // 3.4 Veri Zenginleştirme
-    - Order book derinliği çek
-    - Sosyal medya verileri çek
-    
-    // 3.5 AI Analiz Görevi Oluştur
-    - Veritabanına PENDING job kaydet
-    - AI'ı BEKLEME (non-blocking)
-    - Sonraki coin'e geç
-```
+function startAIWorker():
+  log("AI Agent Worker Başlatıldı...")
+  while True:
+    job = null
+    try:
+      // 4.1 İŞ BUL VE KİLİTLE
+      job = findAndLockPendingJob() // Atomik işlem
 
-### Adım 3: Background AI İşleme
-```typescript
-// aiWorkerService (5 saniyede bir çalışır)
-while (true):
-  // Kuyruktan en eski PENDING job'ı al
-  job = getPendingJob()
-  
-  if job exists:
-    // AI analizi çağır (Gemini API)
-    result = callGeminiAI(job.data)
-    
-    // Sonuçları kaydet
-    saveToDatabase(result)
-    
-    // Bildirim gönder
-    if result.risk_score >= 80:
-      sendHighRiskAlert()
-    elif result.risk_score >= 60:
-      sendOpportunityAlert()
-  
-  sleep(5 seconds)
+      if job:
+        log("İş alınıyor: " + job.symbol)
+
+        // 4.2 (YAVAŞ) AI ÇAĞRISINI YAP
+        aiAnalysisResult = getGeminiStructuredAnalysis(
+          "gemini-1.5-flash",
+          job.symbol,
+          job.price_change,
+          job.volume_spike,
+          parseJSON(job.orderbook_json),
+          parseJSON(job.social_json)
+        )
+
+        if aiAnalysisResult:
+          // 4.3 BAŞARILI: Sonucu DB'ye yaz
+          updateJobWithAnalysis(job.id, aiAnalysisResult, "COMPLETED")
+          log("İş tamamlandı: " + job.symbol)
+
+          // 4.4 BİLDİRİM GÖNDER
+          if aiAnalysisResult.risk_score >= 75:
+            notifyUsers("⚠️ $" + job.symbol + " Yüksek Risk Uyarısı", aiAnalysisResult.summary)
+
+        else:
+          throw new Error("AI analizi boş döndü")
+
+    except Exception as e:
+      log("AI Worker Hatası: " + e)
+      if job:
+        updateJobStatus(job.id, "FAILED")
+
+    // Sırada iş yoksa bekle
+    sleep(5)
 ```
 
 ## 🔧 Yapılandırma

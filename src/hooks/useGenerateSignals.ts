@@ -1,24 +1,11 @@
+// PROSESS 1: MARKET WATCHER (Piyasa Gözetmeni)
+// Görevi: ÇOK HIZLI çalış, anormallikleri tespit et, "iş emri" oluştur.
+// AI'ı ASLA BEKLEMEZ.
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { getTop200CoinsByVolume } from '@/services/binanceService';
 import { aiWorkerService } from '@/services/aiWorkerService';
 import { notificationService } from '@/services/notificationService';
-
-// Clean implementation following pseudo code exactly
-type BinanceKline = [
-  number, // 0: Open time
-  string, // 1: Open
-  string, // 2: High
-  string, // 3: Low
-  string, // 4: Close
-  string, // 5: Volume
-  number, // 6: Close time
-  string, // 7: Quote asset volume
-  number, // 8: Number of trades
-  string, // 9: Taker buy base asset volume
-  string, // 10: Taker buy quote asset volume
-  string  // 11: Unused
-];
 
 export interface MarketWatcherConfig {
   maxCoins: number;
@@ -32,7 +19,7 @@ export interface MarketWatcherConfig {
 }
 
 const DEFAULT_CONFIG: MarketWatcherConfig = {
-  maxCoins: 10, // Start with just 10 coins for testing
+  maxCoins: 10,
   interval: '1m',
   enabled: true,
   volumeMultiplier: 2.5,
@@ -41,146 +28,61 @@ const DEFAULT_CONFIG: MarketWatcherConfig = {
   scanInterval: 60 * 1000
 };
 
+// Global parametreler
 const COINS = ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'SHIB', 'AVAX', 'LINK', 'DOT'];
 const INTERVAL = '1m';
 const VOLUME_MULTIPLIER = 2.5;
 const PRICE_CHANGE_THRESHOLD = 0.03;
+const CACHE_DURATION_MINUTES = 15;
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+type BinanceKline = [
+  number, string, string, string, string, string, number, string, number, string, string, string
+];
 
-// Calculate HMA
-const calculateHMA = (prices: number[], period: number) => {
-  const halfPeriod = Math.floor(period / 2);
-  const sqrtPeriod = Math.round(Math.sqrt(period));
-  
-  // Simple moving average
-  const sma = (arr: number[], p: number) => {
-    const result = [];
-    for (let i = p - 1; i < arr.length; i++) {
-      const sum = arr.slice(i - p + 1, i + 1).reduce((a, b) => a + b, 0);
-      result.push(sum / p);
-    }
-    return result;
-  };
-  
-  const wmaHalf = sma(prices, halfPeriod);
-  const wmaFull = sma(prices, period);
-  
-  if (wmaHalf.length === 0 || wmaFull.length === 0) return [];
-  
-  const diffWma = wmaHalf.map((val, index) => {
-    const offset = wmaHalf.length - wmaFull.length;
-    return 2 * val - (wmaFull[index + offset] || wmaFull[wmaFull.length - 1]);
-  });
-  
-  return sma(diffWma, sqrtPeriod);
-};
-
-// Calculate RSI
-const calculateRSI = (prices: number[], period: number) => {
-  const rsi = [];
-  let gains = 0;
-  let losses = 0;
-
-  for (let i = 1; i < prices.length; i++) {
-    const change = prices[i] - prices[i - 1];
-    if (change > 0) gains += change;
-    else losses -= change;
-
-    if (i === period) {
-      const avgGain = gains / period;
-      const avgLoss = losses / period;
-      const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-      rsi.push(100 - (100 / (1 + rs)));
-    } else if (i > period) {
-      const avgGain = (rsi[i - period - 1] === undefined ? gains : (gains / period)) / 2;
-      const avgLoss = (rsi[i - period - 1] === undefined ? losses : (losses / period)) / 2;
-      const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-      rsi.push(100 - (100 / (1 + rs)));
-    }
-  }
-
-  return rsi;
-};
-
-// Fetch Binance klines
-async function fetchBinanceKlines(symbol: string, interval = '15m', limit = 100): Promise<BinanceKline[]> {
-  try {
-    // Ensure symbol is in correct format (e.g., BTCUSDT)
-    const formattedSymbol = symbol.includes('USDT') ? symbol : `${symbol}USDT`;
-    const url = `https://api.binance.com/api/v3/klines?symbol=${formattedSymbol}&interval=${interval}&limit=${limit}`;
-
-    console.log(`Fetching klines from: ${url}`);
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error(`Binance API error for ${formattedSymbol}: ${response.status} ${response.statusText}`);
-      return [];
-    }
-    const data: BinanceKline[] = await response.json();
-    console.log(`Got ${data.length} klines for ${formattedSymbol}`);
-    return data;
-  } catch (error) {
-    console.error(`Error fetching klines for ${symbol}:`, error);
-    return [];
-  }
-}
-
-// Fetch 24h ticker data
-async function fetch24hTicker(symbol: string) {
+// Temel veri toplama
+async function getBinanceKline(symbol: string, interval: string): Promise<BinanceKline | null> {
   try {
     const formattedSymbol = symbol.includes('USDT') ? symbol : `${symbol}USDT`;
-    const url = `https://api.binance.com/api/v3/ticker/24hr?symbol=${formattedSymbol}`;
+    const url = `https://api.binance.com/api/v3/klines?symbol=${formattedSymbol}&interval=${interval}&limit=1`;
 
     const response = await fetch(url);
     if (!response.ok) return null;
-    return await response.json();
-  } catch (error) {
-    console.error(`Error fetching 24h ticker for ${symbol}:`, error);
-    return null;
-  }
-}
 
-// Fetch orderbook depth
-async function fetchOrderBookDepth(symbol: string, limit = 100) {
-  try {
-    const formattedSymbol = symbol.includes('USDT') ? symbol : `${symbol}USDT`;
-    const url = `https://api.binance.com/api/v3/depth?symbol=${formattedSymbol}&limit=${limit}`;
-
-    const response = await fetch(url);
-    if (!response.ok) return null;
     const data = await response.json();
-
-    // Calculate total depth (sum of bids and asks)
-    const totalDepth = [...data.bids, ...data.asks].reduce((sum, [price, quantity]) =>
-      sum + (parseFloat(price) * parseFloat(quantity)), 0);
-
-    return totalDepth;
+    return data[0] as BinanceKline;
   } catch (error) {
-    console.error(`Error fetching orderbook for ${symbol}:`, error);
+    console.error(`getBinanceKline error for ${symbol}:`, error);
     return null;
   }
 }
 
-// Fetch market cap from CoinGecko (simplified)
-async function fetchMarketCap(symbol: string) {
+// Ortalama hacim hesaplama
+async function getAvgVolume(symbol: string, periods: number): Promise<number> {
   try {
-    const coinId = symbol.replace('USDT', '').toLowerCase();
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&include_market_cap=true`;
+    const formattedSymbol = symbol.includes('USDT') ? symbol : `${symbol}USDT`;
+    const url = `https://api.binance.com/api/v3/klines?symbol=${formattedSymbol}&interval=1m&limit=${periods}`;
 
     const response = await fetch(url);
-    if (!response.ok) return null;
-    const data = await response.json();
+    if (!response.ok) return 0;
 
-    return data[coinId]?.usd_market_cap || null;
+    const data = await response.json();
+    const volumes = data.map((k: BinanceKline) => parseFloat(k[7]));
+    return volumes.reduce((sum: number, vol: number) => sum + vol, 0) / periods;
   } catch (error) {
-    console.error(`Error fetching market cap for ${symbol}:`, error);
-    return null;
+    console.error(`getAvgVolume error for ${symbol}:`, error);
+    return 0;
   }
 }
 
-// Get orderbook depth in price range
-async function getOrderbookDepth(symbol: string, percentRange = 2.0) {
+// Fiyat değişimi hesaplama
+function calculatePercentChange(close: string, open: string): number {
+  const closePrice = parseFloat(close);
+  const openPrice = parseFloat(open);
+  return ((closePrice - openPrice) / openPrice) * 100;
+}
+
+// Emir defteri derinliği
+async function getOrderbookDepth(symbol: string, percentRange: number) {
   try {
     const formattedSymbol = symbol.includes('USDT') ? symbol : `${symbol}USDT`;
     const url = `https://api.binance.com/api/v3/depth?symbol=${formattedSymbol}&limit=100`;
@@ -195,7 +97,6 @@ async function getOrderbookDepth(symbol: string, percentRange = 2.0) {
     const minPrice = currentPrice * (1 - percentRange / 100);
     const maxPrice = currentPrice * (1 + percentRange / 100);
 
-    // Filter orders within price range
     const bidsInRange = data.bids.filter(([price]: [string, string]) =>
       parseFloat(price) >= minPrice && parseFloat(price) <= maxPrice
     );
@@ -203,7 +104,6 @@ async function getOrderbookDepth(symbol: string, percentRange = 2.0) {
       parseFloat(price) >= minPrice && parseFloat(price) <= maxPrice
     );
 
-    // Calculate total USD value
     const totalBidsUsd = bidsInRange.reduce((sum: number, [price, quantity]: [string, string]) =>
       sum + (parseFloat(price) * parseFloat(quantity)), 0);
     const totalAsksUsd = asksInRange.reduce((sum: number, [price, quantity]: [string, string]) =>
@@ -214,16 +114,16 @@ async function getOrderbookDepth(symbol: string, percentRange = 2.0) {
       total_bids_usd: totalBidsUsd,
       total_asks_usd: totalAsksUsd,
       depth_usd: depthUsd,
-      is_thin: depthUsd < 1300000 // 1.3M USD threshold
+      is_thin: depthUsd < 1300000
     };
   } catch (error) {
-    console.error(`Error fetching orderbook depth for ${symbol}:`, error);
+    console.error(`getOrderbookDepth error for ${symbol}:`, error);
     return null;
   }
 }
 
-// Get current price
-async function getCurrentPrice(symbol: string) {
+// Mevcut fiyat
+async function getCurrentPrice(symbol: string): Promise<number | null> {
   try {
     const formattedSymbol = symbol.includes('USDT') ? symbol : `${symbol}USDT`;
     const url = `https://api.binance.com/api/v3/ticker/price?symbol=${formattedSymbol}`;
@@ -234,131 +134,61 @@ async function getCurrentPrice(symbol: string) {
     const data = await response.json();
     return parseFloat(data.price);
   } catch (error) {
-    console.error(`Error fetching current price for ${symbol}:`, error);
+    console.error(`getCurrentPrice error for ${symbol}:`, error);
     return null;
   }
 }
 
-// Get social mentions (placeholder - would need Twitter API)
-async function getSocialMentions(symbol: string, timeframe = '10m') {
-  // Placeholder implementation - in real app would connect to Twitter/LunarCrush API
+// Sosyal medya verileri (placeholder)
+async function getSocialMentions(symbol: string, timeframe: string) {
   return {
-    mention_increase_percent: 0, // Simulated
+    mention_increase_percent: 0,
     sentiment: 'neutral'
   };
 }
 
-// Get average volume for last N candles
-async function getAvgVolume(symbol: string, periods = 20) {
+// Önbellek kontrolü
+async function findRecentJob(symbol: string, minutes: number): Promise<boolean> {
   try {
-    const klines = await fetchBinanceKlines(symbol, '1m', periods + 1);
-    if (klines.length < periods) return 0;
+    const cutoffTime = new Date(Date.now() - minutes * 60 * 1000).toISOString();
 
-    const volumes = klines.slice(-periods).map((k: BinanceKline) => parseFloat(k[7]));
-    return volumes.reduce((sum, vol) => sum + vol, 0) / periods;
-  } catch (error) {
-    console.error(`Error fetching avg volume for ${symbol}:`, error);
-    return 0;
-  }
-}
+    const { data, error } = await supabase
+      .from('analysis_jobs')
+      .select('id')
+      .eq('symbol', symbol.replace('USDT', ''))
+      .gte('created_at', cutoffTime)
+      .limit(1);
 
-// Get structured AI analysis for anomaly
-async function getGeminiStructuredAnalysis(
-  symbol: string,
-  priceChange: number,
-  volumeSpike: number,
-  orderbookData: { total_bids_usd: number; total_asks_usd: number; depth_usd: number; is_thin: boolean } | null,
-  socialData: { mention_increase_percent: number; sentiment: string }
-) {
-  if (!GEMINI_API_KEY) {
-    return {
-      risk_score: 50,
-      summary: 'AI analysis unavailable - potential anomaly detected',
-      likely_source: 'Unknown',
-      actionable_insight: 'Monitor the price movement closely'
-    };
-  }
-
-  try {
-    const prompt = `GÖREV: Sen bir kripto para piyasası anomali analistisin.
-Sana verilen verileri analiz et ve bir 'Pump & Dump' veya manipülasyon riskini değerlendir.
-
-VERİLER:
-- Coin: $${symbol.replace('USDT', '')}USDT
-- Son 1dk Fiyat Değişimi: +${priceChange.toFixed(2)}%
-- Hacim Artışı (Ortalamaya Göre): ${volumeSpike.toFixed(1)}x
-- Emir Defteri (+/- %2): ${orderbookData?.depth_usd ? (orderbookData.depth_usd / 1000000).toFixed(1) + 'M' : 'Unknown'} USD (${orderbookData?.is_thin ? 'ZAYIF' : 'GÜÇLÜ'})
-- Sosyal Medya (Son 10dk): ${socialData?.mention_increase_percent || 0}% artış
-
-ANALİZ İSTEĞİ:
-Bu verilere dayanarak, aşağıdaki JSON formatında bir risk analizi oluştur:
-
-{
-  "risk_score": (0-100 arası bir manipülasyon/tuzak riski puanı),
-  "summary": (1-2 cümlelik, yatırımcı dostu özet ve sonuç. Örn: 'Yüksek Risk: ...'),
-  "likely_source": ('Organik Alım', 'Balina Operasyonu', 'Pump Grubu / Söylenti', 'Short Squeeze', 'Bilinmiyor'),
-  "actionable_insight": (Yatırımcıya 1 cümlelik eyleme dönük fikir. Örn: 'FOMO'dan kaçının', 'Hareketi izlemeye alın')
-}
-
-Sadece JSON çıktısı ver. Başka hiçbir açıklama yapma.`;
-
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + GEMINI_API_KEY, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }]
-      })
-    });
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return parsed;
+    if (error) {
+      console.error('findRecentJob error:', error);
+      return false;
     }
-  } catch (error) {
-    console.error('AI analysis error:', error);
-  }
 
-  return {
-    risk_score: 50,
-    summary: 'Analysis failed - monitor the anomaly',
-    likely_source: 'Unknown',
-    actionable_insight: 'Exercise caution with this movement'
-  };
+    return data && data.length > 0;
+  } catch (error) {
+    console.error('findRecentJob error:', error);
+    return false;
+  }
 }
 
-// Create analysis job (fast process - no AI call)
-// 3.3 MALİYET KONTROLÜ: ÖNBELLEK (CACHE) KONTROLÜ
+// İş emri oluşturma
 async function createAnalysisJob(
   symbol: string,
   priceChange: number,
   volumeSpike: number,
-  orderbookData: { total_bids_usd: number; total_asks_usd: number; depth_usd: number; is_thin: boolean } | null,
-  socialData: { mention_increase_percent: number; sentiment: string },
+  orderbookData: {
+    total_bids_usd: number;
+    total_asks_usd: number;
+    depth_usd: number;
+    is_thin: boolean;
+  } | null,
+  socialData: {
+    mention_increase_percent: number;
+    sentiment: string;
+  },
   price: number
 ) {
   try {
-    // Check if there's already a recent job for this symbol (caching)
-    // Bu coin için son 15dk içinde analiz yapılmış mı?
-    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-
-    const { data: existingJob } = await supabase
-      .from('analysis_jobs')
-      .select('id, status')
-      .eq('symbol', symbol.replace('USDT', ''))
-      .gte('created_at', fifteenMinutesAgo)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (existingJob && existingJob.length > 0) {
-      console.log(`📋 Önbellekte analiz bulundu: ${symbol} - Atlanıyor`);
-      return null;
-    }
-
-    // Create new analysis job
-    console.log(`📝 Yeni analiz görevi oluşturuluyor: ${symbol}`);
     const { data, error } = await supabase
       .from('analysis_jobs')
       .insert({
@@ -375,170 +205,76 @@ async function createAnalysisJob(
       .single();
 
     if (error) {
-      console.error(`❌ Analiz görevi oluşturulamadı ${symbol}:`, error);
+      console.error(`createAnalysisJob error for ${symbol}:`, error);
       return null;
     }
 
-    console.log(`✅ AI analiz görevi kuyruğa alındı: ${symbol}`);
     return data;
   } catch (error) {
-    console.error(`❌ createAnalysisJob hatası ${symbol}:`, error);
+    console.error(`createAnalysisJob error for ${symbol}:`, error);
     return null;
   }
 }
 
-// Process pending analysis jobs (background AI worker)
-async function processPendingAnalysisJobs() {
-  try {
-    // Find pending job
-    const { data: job, error: findError } = await supabase
-      .from('analysis_jobs')
-      .select('*')
-      .eq('status', 'PENDING')
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .single();
+// Ana piyasa gözetmeni fonksiyonu
+async function startMarketWatcher(config: MarketWatcherConfig) {
+  console.log("Piyasa Gözetmeni Başlatıldı...");
 
-    if (findError || !job) {
-      return null; // No pending jobs
-    }
-
-    // Mark as processing
-    await supabase
-      .from('analysis_jobs')
-      .update({ status: 'PROCESSING' })
-      .eq('id', job.id);
-
-    console.log(`Processing job for ${job.symbol}`);
-
+  while (true) {
     try {
-      // Parse stored data
-      const orderbookData = JSON.parse(job.orderbook_json || '{}');
-      const socialData = JSON.parse(job.social_json || '{}');
+      const topCoins = await getTop200CoinsByVolume();
+      const coinsToProcess = topCoins.slice(0, config.maxCoins).map(coin => coin.symbol);
 
-      // Call AI analysis
-      const aiAnalysisResult = await getGeminiStructuredAnalysis(
-        job.symbol + 'USDT',
-        job.price_change,
-        job.volume_spike,
-        orderbookData,
-        socialData
-      );
+      for (const coin of coinsToProcess) {
+        try {
+          // 3.1 Temel Veri Toplama
+          const priceData = await getBinanceKline(coin, config.interval);
+          if (!priceData) continue;
 
-      // Update job with results
-      await supabase
-        .from('analysis_jobs')
-        .update({
-          status: 'COMPLETED',
-          risk_score: aiAnalysisResult.risk_score,
-          summary: aiAnalysisResult.summary,
-          likely_source: aiAnalysisResult.likely_source,
-          actionable_insight: aiAnalysisResult.actionable_insight,
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', job.id);
+          const avgVolume = await getAvgVolume(coin, 20);
+          if (avgVolume === 0) continue;
 
-      // Also save to pump_alerts for UI display
-      await supabase.from('pump_alerts').insert({
-        symbol: job.symbol,
-        type: 'AI_ANALYSIS',
-        price: job.price_at_detection,
-        price_change: job.price_change,
-        volume: 0, // Will be calculated from volume_spike if needed
-        volume_multiplier: job.volume_spike,
-        detected_at: job.created_at,
-        market_state: 'bear_market',
-        orderbook_depth: orderbookData?.depth_usd || null,
-        ai_comment: aiAnalysisResult,
-        ai_fetched_at: new Date().toISOString(),
-        risk_score: aiAnalysisResult.risk_score,
-        likely_source: aiAnalysisResult.likely_source,
-        actionable_insight: aiAnalysisResult.actionable_insight
-      });
+          const priceChange = calculatePercentChange(priceData[4], priceData[1]);
+          const volumeSpike = parseFloat(priceData[7]) / avgVolume;
 
-      // Send notification
-      const notificationTitle = `⚠️ $${job.symbol}USDT High Risk Alert (Score: ${aiAnalysisResult.risk_score})`;
-      const notificationBody = aiAnalysisResult.summary;
+          // 3.2 ANOMALİ TESPİTİ
+          if (priceChange > config.priceChangeThreshold && volumeSpike > config.volumeMultiplier) {
+            // 3.3 GÜVENİRLİK ve MALİYET KONTROLÜ
+            if (await findRecentJob(coin, CACHE_DURATION_MINUTES)) {
+              continue; // Önbellekte var, atla
+            }
 
-      console.log(`Job completed for ${job.symbol}: Risk Score ${aiAnalysisResult.risk_score}`);
+            console.log(`🚨 Anomali tespit edildi: ${coin}`);
 
-      return {
-        symbol: job.symbol,
-        risk_score: aiAnalysisResult.risk_score,
-        analysis: aiAnalysisResult
-      };
+            // 3.4 HIZLI Veri Zenginleştirme
+            const [orderbookData, socialData] = await Promise.all([
+              getOrderbookDepth(coin, 2.0),
+              getSocialMentions(coin, "10m")
+            ]);
 
-    } catch (aiError) {
-      console.error(`AI processing error for job ${job.id}:`, aiError);
-      // Mark as failed
-      await supabase
-        .from('analysis_jobs')
-        .update({ status: 'FAILED' })
-        .eq('id', job.id);
-      return null;
+            // 3.5 AI İŞ EMRİ OLUŞTUR
+            await createAnalysisJob(
+              coin,
+              priceChange,
+              volumeSpike,
+              orderbookData,
+              socialData,
+              parseFloat(priceData[4])
+            );
+          }
+        } catch (error) {
+          console.error(`${coin} için Gözetmen hatası:`, error);
+        }
+      }
+
+      // Tüm coinler tarandı, 60 saniye bekle
+      console.log(`${coinsToProcess.length} coin tarandı. 60 saniye bekleniyor...`);
+      await new Promise(resolve => setTimeout(resolve, config.scanInterval));
+
+    } catch (error) {
+      console.error("Market Watcher döngü hatası:", error);
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Hata durumunda 5 saniye bekle
     }
-
-  } catch (error) {
-    console.error('Error in processPendingAnalysisJobs:', error);
-    return null;
-  }
-}
-
-// Scan for anomalies - matches pseudo code exactly
-// 3. ANA "ALL-IN-ONE" FONKSİYON - startMarketWatcher() içindeki döngü mantığı
-async function scanCoinForAnomalies(symbol: string, config: MarketWatcherConfig) {
-  try {
-    // 3.1 Temel Veri Toplama (Basic Data Collection)
-    const priceData = await fetchBinanceKlines(symbol, '1m', 21); // Son 21 mum (20 avg + 1 current)
-    if (!priceData || priceData.length < 21) return null;
-
-    const avgVolume = await getAvgVolume(symbol, 20);
-    if (avgVolume === 0) return null;
-
-    const lastCandle = priceData[priceData.length - 1];
-    const openPrice = parseFloat(lastCandle[1]);
-    const closePrice = parseFloat(lastCandle[4]);
-    const currentVolume = parseFloat(lastCandle[7]);
-    
-    const priceChange = ((closePrice - openPrice) / openPrice) * 100;
-    const volumeSpike = currentVolume / avgVolume;
-
-    // 3.2 ANOMALİ TESPİTİ (ANOMALY DETECTION) - Sizin Filtreniz
-    if (priceChange <= config.priceChangeThreshold || volumeSpike <= config.volumeMultiplier) {
-      return null; // Anomali yok, devam et
-    }
-
-    console.log(`🚨 Anomali tespit edildi: ${symbol} | Fiyat: +${priceChange.toFixed(2)}% | Hacim: ${volumeSpike.toFixed(1)}x`);
-
-    // 3.4 VERİ ZENGİNLEŞTİRME (DATA ENRICHMENT) - AI için Bağlam
-    console.log(`📊 ${symbol} için veriler zenginleştiriliyor...`);
-    const [orderbookData, socialData] = await Promise.all([
-      getOrderbookDepth(symbol, 2.0), // +/- %2
-      getSocialMentions(symbol, '10m')
-    ]);
-
-    // 3.5 AI ANALİZİ - GÖREV OLUŞTURMA (Job Creation)
-    // AI'ı çağırmak yerine, veritabanına bir "iş emri" giriyoruz.
-    // Bu fonksiyon AI'ı BEKLEMEZ - Non-blocking!
-    console.log(`🤖 ${symbol} için AI analiz görevi oluşturuluyor...`);
-    const job = await createAnalysisJob(
-      symbol,
-      priceChange,
-      volumeSpike,
-      orderbookData,
-      socialData,
-      closePrice
-    );
-
-    if (job) {
-      console.log(`✅ ${symbol} için analiz görevi oluşturuldu - Kuyrukta bekliyor`);
-    }
-
-    return job ? { symbol, jobCreated: true, priceChange, volumeSpike } : null;
-
-  } catch (error) {
-    console.error(`❌ ${symbol} tarama hatası:`, error);
-    return null;
   }
 }
 
@@ -556,49 +292,9 @@ export const useGenerateSignals = (config: Partial<MarketWatcherConfig> = {}) =>
     setProgress({ current: 0, total: 0 });
 
     try {
-      // Get top coins dynamically
-      console.log(`🔍 Top ${finalConfig.maxCoins} coin hacim bazlı getiriliyor...`);
-      const topCoins = await getTop200CoinsByVolume();
-      const coinsToProcess = topCoins.slice(0, finalConfig.maxCoins).map(coin => coin.symbol);
-
-      console.log(`🚀 Piyasa Gözetmeni Başlatıldı - ${coinsToProcess.length} coin taranacak (${finalConfig.interval} aralık)`);
-      setProgress({ current: 0, total: coinsToProcess.length });
-
-      let anomaliesDetected = 0;
-      let jobsCreated = 0;
-
-      // Process coins sequentially to avoid rate limits
-      // 3. ANA "ALL-IN-ONE" FONKSİYON - startMarketWatcher() while True döngüsü
-      for (let i = 0; i < coinsToProcess.length; i++) {
-        const coin = coinsToProcess[i];
-        
-        try {
-          const result = await scanCoinForAnomalies(coin, finalConfig);
-
-          if (result) {
-            anomaliesDetected++;
-            if (result.jobCreated) {
-              jobsCreated++;
-            }
-          }
-        } catch (error) {
-          console.error(`❌ ${coin} için ana döngüde hata:`, error);
-        }
-
-        setProgress({ current: i + 1, total: coinsToProcess.length });
-
-        // Small delay between requests to avoid rate limits
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-      console.log(`📊 Tarama tamamlandı: ${coinsToProcess.length} coin tarandı`);
-      console.log(`🎯 ${anomaliesDetected} anomali tespit edildi`);
-      console.log(`📝 ${jobsCreated} AI analiz görevi oluşturuldu`);
-      
-      setLastGenerated(new Date());
-
+      await startMarketWatcher(finalConfig);
     } catch (error) {
-      console.error('❌ Sinyal üretiminde hata:', error);
+      console.error('generateSignals error:', error);
     } finally {
       setIsGenerating(false);
     }
@@ -614,37 +310,23 @@ export const useGenerateSignals = (config: Partial<MarketWatcherConfig> = {}) =>
 
     // Start AI worker service if AI is enabled
     if (finalConfig.aiEnabled) {
-      console.log('🤖 AI Worker Service başlatılıyor...');
-      aiWorkerService.start(5000); // Check every 5 seconds
+      console.log('🤖 AI Agent Worker başlatılıyor...');
+      aiWorkerService.start(5000);
     }
 
     // Auto-generate signals on mount if enabled
     if (finalConfig.enabled) {
-      console.log('🎬 İlk tarama başlatılıyor...');
+      console.log('🎬 Piyasa Gözetmeni başlatılıyor...');
       generateSignals();
     }
 
-    // Set up auto scan interval if enabled
-    let intervalId: NodeJS.Timeout | null = null;
-    if (finalConfig.enabled && finalConfig.autoScan && finalConfig.scanInterval) {
-      console.log(`⏰ Otomatik tarama aktif: Her ${finalConfig.scanInterval / 1000} saniyede bir`);
-      intervalId = setInterval(() => {
-        console.log('🔄 Otomatik tarama: Yeni sinyal üretimi başlatılıyor...');
-        generateSignals();
-      }, finalConfig.scanInterval);
-    }
-
-    // Cleanup interval on unmount or config change
+    // Cleanup
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-        console.log('⏹️ Otomatik tarama durduruldu');
-      }
       if (finalConfig.aiEnabled) {
         aiWorkerService.stop();
       }
     };
-  }, [finalConfig.enabled, finalConfig.autoScan, finalConfig.scanInterval, finalConfig.aiEnabled]);
+  }, [finalConfig.enabled, finalConfig.aiEnabled]);
 
   return {
     generateSignals,
