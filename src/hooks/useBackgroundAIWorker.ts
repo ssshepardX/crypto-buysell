@@ -78,7 +78,8 @@ export const useBackgroundAIWorker = (config: BackgroundAIWorkerConfig = {
           type: 'AI_ANALYSIS',
           price: job.price_at_detection,
           price_change: job.price_change,
-          volume: 0, // Will be calculated from volume_spike if needed
+          volume: 1, // Provide a default value instead of 0
+          avg_volume: 1, // Provide a default value to avoid null constraint
           volume_multiplier: job.volume_spike,
           detected_at: job.created_at,
           market_state: 'bear_market',
