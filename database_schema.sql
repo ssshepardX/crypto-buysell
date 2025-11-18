@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS analysis_jobs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'PENDING', -- PENDING, PROCESSING, COMPLETED, FAILED
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING', -- PENDING, PROCESSING, COMPLETED, FAILED, CACHED
     price_at_detection DECIMAL(20,8) NOT NULL,
     price_change DECIMAL(10,4) NOT NULL,
     volume_spike DECIMAL(10,4) NOT NULL,
@@ -31,6 +31,22 @@ ADD COLUMN IF NOT EXISTS orderbook_depth DECIMAL(20,2),
 ADD COLUMN IF NOT EXISTS risk_score INTEGER,
 ADD COLUMN IF NOT EXISTS likely_source VARCHAR(100),
 ADD COLUMN IF NOT EXISTS actionable_insight TEXT;
+
+-- Create user_subscriptions table for subscription management
+CREATE TABLE IF NOT EXISTS user_subscriptions (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    plan VARCHAR(20) NOT NULL DEFAULT 'free', -- 'free', 'insighter', 'analyzer'
+    active BOOLEAN NOT NULL DEFAULT true,
+    stripe_subscription_id VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id, active) -- Only one active subscription per user
+);
+
+-- Add indexes for performance
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id ON user_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_plan ON user_subscriptions(plan);
 
 -- Create a view for active analysis results (for UI display)
 CREATE OR REPLACE VIEW active_analysis AS

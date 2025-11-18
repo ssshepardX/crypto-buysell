@@ -3,6 +3,8 @@
 // sonucu DB'ye yazar ve bildirimi gönderir.
 import { supabase } from '@/integrations/supabase/client';
 import { notificationService } from './notificationService';
+import { analyzeWithLayer3AI, type Layer3AnalysisInput } from './aiService';
+import { type RiskScoreResult } from './riskScoringService';
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -64,33 +66,85 @@ class AIWorkerService {
 
       if (job) {
         console.log(`🔄 İş alınıyor: ${job.symbol}`);
-        
-        // 4.2 (YAVAŞ) AI ÇAĞRISINI YAP
-        const aiAnalysisResult = await this.getGeminiStructuredAnalysis(
-          "gemini-1.5-flash",
-          job.symbol,
-          job.price_change,
-          job.volume_spike,
-          JSON.parse(job.orderbook_json || '{}'),
-          JSON.parse(job.social_json || '{}')
-        );
+
+        // 4.2 15-DAKİKA CACHE KURALINI KONTROL ET
+        const cacheCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+        const { data: recentJob, error: cacheError } = await supabase
+          .from('analysis_jobs')
+          .select('*')
+          .eq('symbol', job.symbol.replace('USDT', ''))
+          .eq('status', 'COMPLETED')
+          .gte('created_at', cacheCutoff)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (cacheError) {
+          console.error('Cache kontrol hatası:', cacheError);
+        } else if (recentJob) {
+          console.log(`⏰ Cache bulundu (${job.symbol}): ${recentJob.created_at} - Analiz atlanıyor`);
+          await this.updateJobStatus(job.id, "CACHED");
+          return;
+        }
+
+        // 4.3 TECHNICAL VERİLERİ HAZIRLA (BURADA VERECEK SİSTEM EKLE)
+        // TODO: Real technical data collection needed here
+        // For now, we'll simulate the data structure
+        const coinData = {
+          symbol: job.symbol,
+          priceChangePercent5m: job.price_change,
+          volume: job.volume_spike * 100000, // Estimated volume
+          avgVolume: 100000, // Estimated average
+          marketCap: 10000000, // Estimated market cap (passes >$10M filter)
+          rsi: 70, // Default RSI - needs real calculation
+          totalBidsUSD: 500000, // Default - needs real orderbook
+          totalAsksUSD: 600000, // Default - needs real orderbook
+          volumeToMarketCapRatio: 0.05, // Default - needs calculation
+          priceChangePercent1m: job.price_change
+        };
+
+        // 4.4 LAYER 2: MATH-BASED RISK SCORING
+        const { calculateBaseRiskScore } = await import('./riskScoringService');
+        const riskResult = calculateBaseRiskScore(coinData);
+
+        if (!riskResult) {
+          throw new Error("Risk scoring failed");
+        }
+
+        // 4.5 LAYER 3: AI QUALITATIVE ANALYSIS
+        const orderbookData = JSON.parse(job.orderbook_json || '{}');
+        const layer3Input: Layer3AnalysisInput = {
+          symbol: job.symbol,
+          baseRiskScore: riskResult.base_risk_score,
+          rsi: riskResult.technical_data.rsi,
+          isThin: orderbookData.is_thin || false
+        };
+
+        const aiAnalysisResult = await analyzeWithLayer3AI(layer3Input);
 
         if (aiAnalysisResult) {
-          // 4.3 BAŞARILI: Sonucu DB'ye yaz
-          await this.updateJobWithAnalysis(job.id, aiAnalysisResult, "COMPLETED");
-          console.log(`✅ İş tamamlandı: ${job.symbol} (Skor: ${aiAnalysisResult.risk_score})`);
+          // 4.6 SUCCESS: Map AI result to database fields
+          const mappedResult = {
+            risk_score: aiAnalysisResult.final_risk_score,
+            summary: aiAnalysisResult.verdict,
+            likely_source: aiAnalysisResult.likely_scenario,
+            actionable_insight: aiAnalysisResult.short_comment
+          };
 
-          // 4.4 BİLDİRİM GÖNDER
-          await this.sendNotification(job.symbol, aiAnalysisResult);
+          await this.updateJobWithAnalysis(job.id, mappedResult, "COMPLETED");
+          console.log(`✅ İş tamamlandı: ${job.symbol} (Final Score: ${mappedResult.risk_score})`);
+
+          // 4.7 SEND NOTIFICATION IF HIGH RISK
+          await this.sendNotification(job.symbol, mappedResult);
         } else {
-          throw new Error("AI analizi boş döndü");
+          throw new Error("Layer 3 AI analysis failed");
         }
       }
-      // Sırada iş yoksa sessizce bekle
+      // If no job available, wait silently
     } catch (error) {
       console.error("❌ AI Worker Hatası:", error);
       if (job) {
-        // 4.5 HATA YÖNETİMİ
+        // 4.8 ERROR HANDLING
         await this.updateJobStatus(job.id, "FAILED");
         console.log(`"FAIL" olarak işaretlendi: ${job.symbol} (ID: ${job.id})`);
       }

@@ -1,7 +1,7 @@
 // AI Service using Google Gemini for crypto pump analysis
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-exp:generateContent';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 export interface AIAnalysisResult {
   isOrganic: boolean;
@@ -211,4 +211,137 @@ export function quickRiskAssessment(input: PumpAnalysisInput): {
   }
   
   return { riskLevel, shouldAlert };
+}
+
+// Layer 3 AI analysis interface - validates and interprets the base risk score
+export interface Layer3AnalysisInput {
+  symbol: string;
+  baseRiskScore: number; // 0-100 from Layer 2
+  rsi: number;
+  isThin: boolean; // thin orderbook
+}
+
+export interface Layer3AIResult {
+  final_risk_score: number;
+  verdict: string;
+  likely_scenario: string;
+  short_comment: string;
+}
+
+// Layer 3: Qualitative AI Analysis with Gemini 1.5 Flash
+export async function analyzeWithLayer3AI(input: Layer3AnalysisInput): Promise<Layer3AIResult | null> {
+  if (!GEMINI_API_KEY) {
+    console.warn('Gemini API key not found, returning default Layer 3 analysis');
+    return getDefaultLayer3Analysis(input);
+  }
+
+  try {
+    const prompt = `"""
+ROLE: You are a cynical crypto risk analyst. You look for traps.
+INPUT DATA:
+- Symbol: ${input.symbol}
+- Math Risk Score: ${input.baseRiskScore}/100
+- RSI: ${input.rsi}
+- Orderbook Status: ${input.isThin ? 'Thin' : 'Normal'}
+
+TASK:
+1. Validate the Risk Score. Does it make sense?
+2. Provide a 1-sentence 'Verdict' (Warning or Opportunity).
+3. Identify the 'Likely Scenario' (e.g., 'FOMO Trap', 'Whale Manipulation', 'Organic Breakout').
+
+OUTPUT: JSON only.
+{
+  "final_risk_score": (Integer, adjusted slightly if needed),
+  "verdict": (String),
+  "likely_scenario": (String),
+  "short_comment": (String)
+}
+"""`;
+
+    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.3, // Lower temperature for more consistent analysis
+          maxOutputTokens: 200,
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    // Extract JSON from response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error('Failed to extract JSON from Layer 3 AI response:', text);
+      return getDefaultLayer3Analysis(input);
+    }
+
+    const analysis = JSON.parse(jsonMatch[0]);
+
+    // Validate and ensure all required fields exist
+    return {
+      final_risk_score: Math.max(0, Math.min(100, analysis.final_risk_score ?? input.baseRiskScore)),
+      verdict: analysis.verdict ?? 'Analysis inconclusive',
+      likely_scenario: analysis.likely_scenario ?? 'Unknown scenario',
+      short_comment: analysis.short_comment ?? 'Monitor closely'
+    };
+
+  } catch (error) {
+    console.error('Error getting Layer 3 AI analysis:', error);
+    return getDefaultLayer3Analysis(input);
+  }
+}
+
+// Get default Layer 3 analysis when AI is unavailable
+function getDefaultLayer3Analysis(input: Layer3AnalysisInput): Layer3AIResult {
+  let verdict = 'Caution advised';
+  let likely_scenario = 'Uncertain market condition';
+  let short_comment = 'Continue monitoring';
+  let adjustedScore = input.baseRiskScore;
+
+  if (input.baseRiskScore >= 70) {
+    verdict = 'High risk warning';
+    likely_scenario = input.isThin ? 'Thin orderbook trap' : 'Whale manipulation suspected';
+    short_comment = 'Avoid FOMO entries';
+    adjustedScore = Math.min(100, adjustedScore + 5); // Slight upward adjustment for caution
+  } else if (input.baseRiskScore >= 40) {
+    verdict = 'Moderate opportunity';
+    likely_scenario = 'Balanced market movement';
+    short_comment = 'Enter with proper risk management';
+  } else {
+    verdict = 'Lower risk opportunity';
+    likely_scenario = 'Healthy market traction';
+    short_comment = 'Favorable entry conditions';
+    adjustedScore = Math.max(0, adjustedScore - 3); // Slight downward adjustment
+  }
+
+  // Factor in RSI for additional context
+  if (input.rsi > 85) {
+    short_comment += ' (Overbought RSI)';
+    adjustedScore = Math.min(100, adjustedScore + 10);
+  } else if (input.rsi < 20) {
+    short_comment += ' (Oversold RSI)';
+    adjustedScore = Math.max(0, adjustedScore - 10);
+  }
+
+  return {
+    final_risk_score: adjustedScore,
+    verdict,
+    likely_scenario,
+    short_comment
+  };
 }
