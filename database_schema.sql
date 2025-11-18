@@ -97,14 +97,14 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION find_and_lock_job()
 RETURNS TABLE (
   id uuid,
-  symbol text,
-  status text,
-  price_at_detection decimal,
-  price_change decimal,
-  volume_spike decimal,
-  orderbook_json text,
-  social_json text,
-  created_at timestamp with time zone
+  symbol VARCHAR(20),
+  status VARCHAR(20),
+  price_at_detection DECIMAL(20,8),
+  price_change DECIMAL(10,4),
+  volume_spike DECIMAL(10,4),
+  orderbook_json JSONB,
+  social_json JSONB,
+  created_at TIMESTAMP WITH TIME ZONE
 ) AS $$
 DECLARE
   job_id uuid;
