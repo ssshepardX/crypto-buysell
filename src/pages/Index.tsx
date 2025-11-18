@@ -9,24 +9,31 @@ import Head from "@/components/Head";
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950 flex flex-col">
+      {/* Background pattern */}
+      <div className="absolute inset-0">
+        <div className="absolute inset-0 bg-slate-950"></div>
+        <div className="absolute inset-0 opacity-30">
+          <div className="w-full h-full bg-[radial-gradient(circle_at_center,rgba(6,182,212,0.05)_0%,transparent_70%)] animate-pulse"></div>
+        </div>
+      </div>
       <Head
-        title="Shepard AI - The 'Why' Behind the Price"
-        description="Understand the real reasons behind crypto price movements with advanced AI analysis. Detect market anomalies, assess manipulation risks, and make informed trading decisions."
+        title="AI Market Analyst - Crypto AI Advisor Platform"
+        description="Advanced AI-powered cryptocurrency market analysis platform. Get intelligent trading advice, risk assessments, and market anomaly detection across 200+ cryptocurrencies."
       />
       <Navbar />
-      <main className="flex-grow">
+      <main className="relative z-10 flex-grow">
         {/* Hero Section */}
         <section className="container mx-auto text-center pt-20 pb-12 lg:pt-32 lg:pb-20 animate-fade-in-up">
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4 text-foreground dark:bg-gradient-to-r dark:from-cyan-400 dark:to-purple-500 dark:text-transparent dark:bg-clip-text">
-            The 'Why' Behind the Price
+          <h1 className="text-4xl md:text-6xl font-inter font-bold tracking-tight mb-4 bg-gradient-to-r from-cyan-300 to-slate-400 text-transparent bg-clip-text">
+            AI-Powered Crypto Advisors
           </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
-            Understand the real reasons behind crypto price movements. Our AI detects market anomalies, assesses manipulation risks, and provides actionable insights for informed trading decisions.
+          <p className="text-lg md:text-xl text-slate-400 font-inter max-w-3xl mx-auto mb-8 leading-relaxed">
+            Get intelligent AI analysis & risk assessments across 200+ cryptocurrencies. Detect market anomalies, understand price movements, and make data-based trading decisions.
           </p>
           <Link to="/login">
-            <Button size="lg" className="transition-all hover:shadow-[0_0_20px_theme(colors.cyan.500)]">
-              Start Analyzing Markets
+            <Button size="lg" className="bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-600 hover:to-sky-600 text-white font-inter font-medium px-8 py-3 rounded-lg transition-all hover:shadow-[0_0_30px_rgba(6,182,212,0.4)]">
+              Start Getting AI Advice
             </Button>
           </Link>
         </section>
@@ -36,42 +43,49 @@ const Index = () => {
 
         {/* Features Section */}
         <section
-          className="bg-black bg-opacity-20 py-20 animate-fade-in-up"
+          className="py-20 animate-fade-in-up"
           style={{ animationDelay: '0.2s' }}
         >
-          <div className="container mx-auto grid md:grid-cols-3 gap-8 text-center">
-            {[
-              { icon: <TrendingUp />, title: "Anomaly Detection", description: "Advanced AI algorithms detect unusual price and volume movements in real-time across 200+ cryptocurrencies." },
-              { icon: <ShieldCheck />, title: "Risk Assessment", description: "Comprehensive analysis of market manipulation risks, orderbook depth, and social sentiment for informed decisions." },
-              { icon: <Zap />, title: "Smart Alerts", description: "Receive intelligent notifications about market anomalies with actionable insights, not just price alerts." }
-            ].map((feature, index) => (
-              <Card
-                key={index}
-                className="bg-secondary/50 backdrop-blur-sm border-white/10 transition-all duration-300 hover:transform hover:-translate-y-2 hover:shadow-[0_0_25px_theme(colors.cyan.500/50%)]"
-              >
-                <CardHeader>
-                  <div className="mx-auto bg-primary text-primary-foreground w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                    {feature.icon}
-                  </div>
-                  <CardTitle>{feature.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">
-                    {feature.description}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="container mx-auto relative z-10">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-inter font-bold text-slate-200 mb-4">AI Advisor Features</h2>
+              <p className="text-slate-400 font-inter max-w-2xl mx-auto">Smart analysis tools that help you understand and navigate the crypto market intelligently</p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-8">
+              {[
+                { icon: <TrendingUp className="h-8 w-8 text-emerald-400" />, title: "Real-time Analysis", description: "Continuous AI monitoring of price movements, volume spikes and market sentiment across thousands of trades." },
+                { icon: <ShieldCheck className="h-8 w-8 text-cyan-400" />, title: "Risk Intelligence", description: "Advanced algorithms assess market risks, whale activity, and manipulation patterns to protect your investments." },
+                { icon: <Zap className="h-8 w-8 text-yellow-400" />, title: "Smart Signals", description: "Receive actionable AI recommendations with clear entry/exit points and risk management strategies." }
+              ].map((feature, index) => (
+                <Card
+                  key={index}
+                  className="bg-slate-950/80 backdrop-blur-xl border-white/10 transition-all duration-300 hover:transform hover:-translate-y-2 hover:shadow-[0_0_30px_rgba(6,182,212,0.2)] hover:border-cyan-500/30 rounded-xl h-full"
+                >
+                  <CardHeader className="pb-4">
+                    <div className="mx-auto w-14 h-14 bg-slate-800/50 backdrop-blur-sm rounded-xl flex items-center justify-center mb-4 shadow-lg border border-white/10">
+                      {feature.icon}
+                    </div>
+                    <CardTitle className="text-xl font-inter font-semibold text-slate-200 text-center">{feature.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-slate-400 font-inter leading-relaxed text-center">
+                      {feature.description}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         </section>
 
         {/* Trending Coins Section */}
-        <section 
+        <section
           className="py-20 animate-fade-in-up"
           style={{ animationDelay: '0.4s' }}
         >
           <div className="container mx-auto">
-            <h2 className="text-3xl font-bold text-center mb-10">Trending Coins</h2>
+            <h2 className="text-3xl font-inter font-bold text-center text-slate-200 mb-10">Market Overview</h2>
             <TrendingCoins />
           </div>
         </section>

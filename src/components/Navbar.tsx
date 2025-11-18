@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useSession } from "@/contexts/SessionContext";
 import { supabase } from "@/integrations/supabase/client";
 import { ThemeToggle } from "./ThemeToggle";
+import { Brain } from "lucide-react";
 
 const Navbar = () => {
   const { session } = useSession();
@@ -17,7 +18,12 @@ const Navbar = () => {
     <header className="w-full p-4 border-b border-white/10 sticky top-0 bg-background/80 backdrop-blur-sm z-50">
       <div className="container mx-auto flex justify-between items-center">
         <Link to="/" className="flex items-center space-x-2">
-          <img src="/logo.png" alt="Shepard AI Logo" className="h-10" />
+          <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-slate-600 rounded-xl flex items-center justify-center shadow-lg">
+            <Brain className="h-6 w-6 text-white" />
+          </div>
+          <span className="text-slate-200 font-inter font-semibold text-lg hidden sm:block">
+            AI Market Analyst
+          </span>
         </Link>
         <nav className="hidden md:flex items-center space-x-2">
           <Link to="/pricing">

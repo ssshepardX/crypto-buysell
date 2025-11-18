@@ -32,13 +32,29 @@ const queryClient = new QueryClient({
   },
 });
 
-// Loading fallback component
+// Loading fallback component with ultra-dark theme
 const LoadingFallback = () => (
-  <div className="min-h-screen flex items-center justify-center p-4">
-    <div className="space-y-4 w-full max-w-md">
-      <Skeleton className="h-8 w-3/4" />
-      <Skeleton className="h-32 w-full" />
-      <Skeleton className="h-32 w-full" />
+  <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-950 flex items-center justify-center p-4">
+    {/* Background pattern */}
+    <div className="absolute inset-0">
+      <div className="absolute inset-0 bg-slate-950"></div>
+      <div className="absolute inset-0 opacity-30">
+        <div className="w-full h-full bg-[radial-gradient(circle_at_center,rgba(6,182,212,0.05)_0%,transparent_70%)] animate-pulse"></div>
+      </div>
+    </div>
+    <div className="relative z-10 flex flex-col items-center space-y-6 w-full max-w-md">
+      <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-sky-600 rounded-2xl flex items-center justify-center shadow-lg animate-pulse">
+        <div className="w-8 h-8 bg-white/20 rounded-lg animate-pulse"></div>
+      </div>
+      <div className="text-center space-y-3">
+        <Skeleton className="h-6 w-3/4 bg-slate-800/50 mx-auto" />
+        <Skeleton className="h-4 w-1/2 bg-slate-800/50 mx-auto" />
+      </div>
+      <div className="space-y-3 w-full">
+        <Skeleton className="h-12 w-full bg-slate-800/50 rounded-xl" />
+        <Skeleton className="h-20 w-full bg-slate-800/50 rounded-xl" />
+        <Skeleton className="h-16 w-full bg-slate-800/50 rounded-lg" />
+      </div>
     </div>
   </div>
 );
