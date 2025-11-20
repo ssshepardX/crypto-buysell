@@ -228,7 +228,7 @@ export interface Layer3AIResult {
   short_comment: string;
 }
 
-// Layer 3: Qualitative AI Analysis with Gemini 1.5 Flash
+// Layer 3: Qualitative AI Analysis with Gemini 1.5 Flash (Updated for browser context)
 export async function analyzeWithLayer3AI(input: Layer3AnalysisInput): Promise<Layer3AIResult | null> {
   if (!GEMINI_API_KEY) {
     console.warn('Gemini API key not found, returning default Layer 3 analysis');
@@ -236,8 +236,15 @@ export async function analyzeWithLayer3AI(input: Layer3AnalysisInput): Promise<L
   }
 
   try {
-    const prompt = `"""
-ROLE: You are a cynical crypto risk analyst. You look for traps.
+    // Use the browser-compatible GoogleGenerativeAI SDK
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+
+    // Use the correct model name for browser context
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const prompt = `ROLE: You are a cynical crypto risk analyst. You look for traps.
+
 INPUT DATA:
 - Symbol: ${input.symbol}
 - Math Risk Score: ${input.baseRiskScore}/100
@@ -249,48 +256,22 @@ TASK:
 2. Provide a 1-sentence 'Verdict' (Warning or Opportunity).
 3. Identify the 'Likely Scenario' (e.g., 'FOMO Trap', 'Whale Manipulation', 'Organic Breakout').
 
-OUTPUT: JSON only.
+OUTPUT: JSON only with these exact keys:
 {
-  "final_risk_score": (Integer, adjusted slightly if needed),
-  "verdict": (String),
-  "likely_scenario": (String),
-  "short_comment": (String)
-}
-"""`;
+  "final_risk_score": (Integer between 0-100),
+  "verdict": "One sentence verdict",
+  "likely_scenario": "Scenario name",
+  "short_comment": "Brief advice"
+}`;
 
-    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.3, // Lower temperature for more consistent analysis
-          maxOutputTokens: 200,
-        }
-      })
-    });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    let text = response.text();
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
-    }
+    // Clean up JSON response (sometimes comes wrapped in markdown)
+    text = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
 
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-    // Extract JSON from response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.error('Failed to extract JSON from Layer 3 AI response:', text);
-      return getDefaultLayer3Analysis(input);
-    }
-
-    const analysis = JSON.parse(jsonMatch[0]);
+    const analysis = JSON.parse(text);
 
     // Validate and ensure all required fields exist
     return {
@@ -302,6 +283,12 @@ OUTPUT: JSON only.
 
   } catch (error) {
     console.error('Error getting Layer 3 AI analysis:', error);
+    // Provide detailed error for debugging
+    console.error('Gemini Layer 3 error details:', {
+      message: error.message,
+      symbol: input.symbol,
+      inputData: input
+    });
     return getDefaultLayer3Analysis(input);
   }
 }
