@@ -22,6 +22,9 @@ import { useSession } from '@/contexts/SessionContext';
 import { useGenerateSignals } from '@/hooks/useGenerateSignals';
 import { PumpAlerts } from '@/components/PumpAlerts';
 import { supabase } from '@/integrations/supabase/client';
+import { getScanResults, getScannerStatus } from '@/services/scannerService';
+import ScanningCard from '@/components/ScanningCard';
+import { ScanData } from '@/services/scannerService';
 
 // Mock data for demonstration - replace with real data later
 const mockAlerts = [
@@ -69,6 +72,9 @@ const mockAlerts = [
 const DashboardPage = () => {
   const { session, loading } = useSession();
   const [selectedAlert, setSelectedAlert] = useState<string | null>(null);
+  const [scanResults, setScanResults] = useState<ScanData[]>([]);
+  const [scannerStatus, setScannerStatus] = useState({ isActive: false, lastScanTime: null, totalScans: 0 });
+  const [isLoadingScans, setIsLoadingScans] = useState(false);
   const [systemStatus, setSystemStatus] = useState({
     watcherActive: true,
     aiWorkerActive: true,
@@ -76,12 +82,40 @@ const DashboardPage = () => {
     alertsToday: 47
   });
 
-  // Market watcher hook - enables dark mode background
-  const { isGenerating, progress, lastGenerated, generateSignals } = useGenerateSignals({
-    maxCoins: 20,
-    aiEnabled: true,
-    autoScan: true
-  });
+  // Effects for auto-refreshing scanner data
+  useEffect(() => {
+    // Initial fetch
+    fetchScanResults();
+
+    // Set up periodic refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchScanResults();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+  const fetchScanResults = async () => {
+    setIsLoadingScans(true);
+    try {
+      const { getScanResults, transformScanForCard } = await import('@/services/scannerService');
+      const response = await getScanResults();
+
+      setScanResults(response.scans);
+      setScannerStatus({
+        isActive: true,
+        lastScanTime: response.lastUpdate,
+        totalScans: response.totalScans
+      });
+
+      console.log(`📊 Fetched ${response.scans.length} scan results from Supabase`);
+      console.log('🔄 Last update:', response.lastUpdate);
+    } catch (error) {
+      console.error('Failed to fetch scan results:', error);
+      setScannerStatus({ isActive: false, lastScanTime: null, totalScans: 0 });
+    } finally {
+      setIsLoadingScans(false);
+    }
+  };
 
   // Ultra-dark theme background effect
   useEffect(() => {
@@ -269,71 +303,98 @@ const DashboardPage = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
             <div>
               <h3 className="text-lg font-inter font-semibold text-slate-200">
-                Market Surveillance Control
+                Supabase Market Surveillance Control
               </h3>
               <p className="text-sm text-slate-400">
-                Monitor top 200 cryptocurrencies for pump & dump patterns
+                Background scanning on Supabase Edge Functions - {scannerStatus.totalScans} scans completed
               </p>
             </div>
-            <Button
-              onClick={generateSignals}
-              disabled={isGenerating}
-              className="bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-600 hover:to-sky-600 text-white font-inter font-medium px-6 py-2 rounded-lg"
-            >
-              <Eye className="h-4 w-4 mr-2" />
-              {isGenerating ? 'Monitoring...' : 'Start New Scan'}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={fetchScanResults}
+                disabled={isLoadingScans}
+                className="bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-600 hover:to-sky-600 text-white font-inter font-medium px-4 py-2 rounded-lg"
+              >
+                <Activity className="h-4 w-4 mr-2" />
+                Refresh Data
+              </Button>
+            </div>
           </div>
 
-          {isGenerating && (
-            <div className="bg-slate-800/50 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-300 font-inter">
-                  Scanning Progress
-                </span>
-                <span className="text-sm text-cyan-400 font-jetbrains">
-                  {progress.current}/{progress.total}
-                </span>
-              </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div
-                  className="bg-gradient-to-r from-cyan-500 to-sky-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
-                />
-              </div>
-              <p className="text-xs text-slate-500 mt-2">
-                Last scan: {lastGenerated ? lastGenerated.toLocaleTimeString() : 'Never'}
-              </p>
+          <div className="bg-slate-800/50 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-slate-300 font-inter">
+                Scanner Status
+              </span>
+              <span className={`text-sm font-bold ${scannerStatus.isActive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {scannerStatus.isActive ? 'Active' : 'Inactive'}
+              </span>
             </div>
-          )}
+            <p className="text-xs text-slate-500 mt-2">
+              Last update: {scannerStatus.lastScanTime ? new Date(scannerStatus.lastScanTime).toLocaleString() : 'Never'}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              System scans every 30 seconds in Supabase Edge Runtime
+            </p>
+          </div>
         </div>
 
-        {/* Active AI Alerts */}
+        {/* Active AI Alerts from Supabase */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-inter font-semibold text-slate-200">
-              Active AI Alerts
+              Supabase AI Scanner Results
             </h3>
             <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-slate-400" />
+              <div className={`w-2 h-2 rounded-full ${scannerStatus.isActive ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
               <span className="text-sm text-slate-400 font-jetbrains">
-                Monitoring 200+ coins in real-time
+                Supabase Edge Runtime Active
               </span>
             </div>
           </div>
 
-          <PumpAlerts alerts={[]} isLoading={false} />
-
-          {mockAlerts.length === 0 && (
+          {isLoadingScans ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="bg-slate-900 border border-slate-800 rounded-xl p-6 animate-pulse">
+                  <div className="h-4 bg-slate-700 rounded mb-4"></div>
+                  <div className="space-y-2">
+                    <div className="h-3 bg-slate-700 rounded"></div>
+                    <div className="h-3 bg-slate-700 rounded w-2/3"></div>
+                    <div className="h-20 bg-slate-700 rounded mt-4"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : scanResults.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {scanResults.slice(0, 12).map((scan) => (
+                <ScanningCard
+                  key={scan.id}
+                  realData={{
+                    symbol: scan.symbol,
+                    time: scan.created_at,
+                    risk_score: scan.risk_score,
+                    price_change: 0, // Will enhance with real data later
+                    volume_spike: 1,
+                    summary: scan.summary || 'Analysis in progress...'
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
             <div className="text-center py-12 bg-slate-950/50 backdrop-blur-md border border-white/10 rounded-xl">
-              <BarChart3 className="h-16 w-16 mx-auto mb-4 text-slate-600" />
+              <Brain className="h-16 w-16 mx-auto mb-4 text-slate-600 animate-pulse" />
               <h4 className="text-lg font-inter font-medium text-slate-400 mb-2">
-                No Active Alerts
+                Supabase Scanner Waiting for Anomalies
               </h4>
               <p className="text-slate-500 text-sm max-w-md mx-auto">
-                Your AI surveillance system is actively monitoring for anomalies.
-                All clear at the moment.
+                No anomalies detected yet. The scanner is actively monitoring the top 200 cryptocurrencies
+                and will display results here when pump/dump patterns are identified.
               </p>
+              <div className="mt-4 text-xs text-slate-400">
+                Console'da tarama logları görünmeli: "🔍 Starting market scan..."
+              </div>
             </div>
           )}
         </div>
