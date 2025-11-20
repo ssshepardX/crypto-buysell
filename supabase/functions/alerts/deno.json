@@ -1,10 +1,12 @@
 {
   "imports": {
-    "supabase": "https://esm.sh/@supabase/supabase-js@2.39.3"
+    "supabase": "https://esm.sh/@supabase/supabase-js@2.45.0",
+    "std/http/server.ts": "jsr:@std/http@1/server"
   },
   "compilerOptions": {
     "allowJs": true,
     "lib": ["deno.window"],
-    "strict": true
+    "strict": true,
+    "types": ["https://deno.land/types/index.d.ts"]
   }
 }

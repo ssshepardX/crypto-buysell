@@ -1,5 +1,7 @@
-// GET /api/alerts Endpoint with Subscription-Based Feature Gating
+// @ts-expect-error TypeScript cannot find Deno std types but they are available at runtime
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
+/// <reference types="https://deno.land/types/index.d.ts" />
+// @ts-expect-error TypeScript cannot find module but types are available at runtime
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
 
 const corsHeaders = {
@@ -8,23 +10,41 @@ const corsHeaders = {
 }
 
 // --- Supabase Client Setup ---
+// @ts-expect-error Deno global available at runtime
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
+// @ts-expect-error Deno global available at runtime
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error("Supabase environment variables are not set.");
+  throw new Error("Supabase environment variables are not set.");
 }
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 // Define subscription plans and their features
 enum SubscriptionPlan {
   FREE = 'free',
-  INSIGHTER = 'insighter', // $9.99
-  ANALYZER = 'analyzer'    // $14.99
+  INSIGHTER = 'dyorist', // $9.99
+  ANALYZER = 'pro_trader'    // $14.99
 }
 
 interface UserSubscription {
   plan: SubscriptionPlan;
   active: boolean;
+}
+
+// Analysis job interface from database
+interface AnalysisJob {
+  id: string;
+  symbol: string;
+  price_at_detection: string;
+  price_change: string;
+  volume_spike: string;
+  risk_score: number;
+  created_at: string;
+  completed_at: string | null;
+  status: string;
+  summary?: string;
+  likely_source?: string;
+  actionable_insight?: string;
 }
 
 // Alert response interface for different subscription levels
@@ -104,7 +124,7 @@ async function getUserSubscription(userId: string): Promise<UserSubscription> {
 
 // Helper function to apply subscription-based filtering and masking
 async function filterAlertsBySubscription(
-  alerts: any[],
+  alerts: AnalysisJob[],
   subscription: UserSubscription
 ): Promise<(FreeAlert | InsighterAlert | AnalyzerAlert)[]> {
   const now = new Date();
@@ -170,7 +190,7 @@ async function filterAlertsBySubscription(
 }
 
 // Main handler
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -259,7 +279,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("Error in alerts endpoint:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     });
