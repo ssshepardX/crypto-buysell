@@ -25,6 +25,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getScanResults, getScannerStatus } from '@/services/scannerService';
 import ScanningCard from '@/components/ScanningCard';
 import { ScanData } from '@/services/scannerService';
+import { getAlerts, AlertData } from '@/services/alertsApi';
 
 // Mock data for demonstration - replace with real data later
 const mockAlerts = [
@@ -72,7 +73,7 @@ const mockAlerts = [
 const DashboardPage = () => {
   const { session, loading } = useSession();
   const [selectedAlert, setSelectedAlert] = useState<string | null>(null);
-  const [scanResults, setScanResults] = useState<ScanData[]>([]);
+  const [scanResults, setScanResults] = useState<AlertData[]>([]);
   const [scannerStatus, setScannerStatus] = useState({ isActive: false, lastScanTime: null, totalScans: 0 });
   const [isLoadingScans, setIsLoadingScans] = useState(false);
   const [systemStatus, setSystemStatus] = useState({
@@ -97,20 +98,20 @@ const DashboardPage = () => {
   const fetchScanResults = async () => {
     setIsLoadingScans(true);
     try {
-      const { getScanResults, transformScanForCard } = await import('@/services/scannerService');
-      const response = await getScanResults();
+      const response = await getAlerts();
 
-      setScanResults(response.scans);
+      setScanResults(response.alerts);
       setScannerStatus({
         isActive: true,
-        lastScanTime: response.lastUpdate,
-        totalScans: response.totalScans
+        lastScanTime: response.timestamp,
+        totalScans: response.alerts.length
       });
 
-      console.log(`📊 Fetched ${response.scans.length} scan results from Supabase`);
-      console.log('🔄 Last update:', response.lastUpdate);
+      console.log(`📊 Fetched ${response.alerts.length} alerts from Supabase`);
+      console.log('🔄 Last update:', response.timestamp);
     } catch (error) {
-      console.error('Failed to fetch scan results:', error);
+      console.error('Failed to fetch alerts:', error);
+      setScanResults([]);
       setScannerStatus({ isActive: false, lastScanTime: null, totalScans: 0 });
     } finally {
       setIsLoadingScans(false);
