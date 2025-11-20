@@ -59,94 +59,95 @@ class AIWorkerService {
     if (this.processingLock) return;
     this.processingLock = true;
 
-    let job = null;
+    let currentJob = null;
     try {
-      // 4.1 İŞ BUL VE KİLİTLE
-      job = await this.findAndLockPendingJob();
+      // 4.1 Find and lock pending job
+      const jobs = await this.findAndLockPendingJob();
 
-      if (job) {
-        console.log(`🔄 İş alınıyor: ${job.symbol}`);
-
-        // 4.2 15-DAKİKA CACHE KURALINI KONTROL ET
-        const cacheCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-        const { data: recentJob, error: cacheError } = await supabase
-          .from('analysis_jobs')
-          .select('*')
-          .eq('symbol', job.symbol.replace('USDT', ''))
-          .eq('status', 'COMPLETED')
-          .gte('created_at', cacheCutoff)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (cacheError) {
-          console.error('Cache kontrol hatası:', cacheError);
-        } else if (recentJob) {
-          console.log(`⏰ Cache bulundu (${job.symbol}): ${recentJob.created_at} - Analiz atlanıyor`);
-          await this.updateJobStatus(job.id, "CACHED");
-          return;
-        }
-
-        // 4.3 TECHNICAL VERİLERİ HAZIRLA (BURADA VERECEK SİSTEM EKLE)
-        // TODO: Real technical data collection needed here
-        // For now, we'll simulate the data structure
-        const coinData = {
-          symbol: job.symbol,
-          priceChangePercent5m: job.price_change,
-          volume: job.volume_spike * 100000, // Estimated volume
-          avgVolume: 100000, // Estimated average
-          marketCap: 10000000, // Estimated market cap (passes >$10M filter)
-          rsi: 70, // Default RSI - needs real calculation
-          totalBidsUSD: 500000, // Default - needs real orderbook
-          totalAsksUSD: 600000, // Default - needs real orderbook
-          volumeToMarketCapRatio: 0.05, // Default - needs calculation
-          priceChangePercent1m: job.price_change
-        };
-
-        // 4.4 LAYER 2: MATH-BASED RISK SCORING
-        const { calculateBaseRiskScore } = await import('./riskScoringService');
-        const riskResult = calculateBaseRiskScore(coinData);
-
-        if (!riskResult) {
-          throw new Error("Risk scoring failed");
-        }
-
-        // 4.5 LAYER 3: AI QUALITATIVE ANALYSIS
-        const orderbookData = JSON.parse(job.orderbook_json || '{}');
-        const layer3Input: Layer3AnalysisInput = {
-          symbol: job.symbol,
-          baseRiskScore: riskResult.base_risk_score,
-          rsi: riskResult.technical_data.rsi,
-          isThin: orderbookData.is_thin || false
-        };
-
-        const aiAnalysisResult = await analyzeWithLayer3AI(layer3Input);
-
-        if (aiAnalysisResult) {
-          // 4.6 SUCCESS: Map AI result to database fields
-          const mappedResult = {
-            risk_score: aiAnalysisResult.final_risk_score,
-            summary: aiAnalysisResult.verdict,
-            likely_source: aiAnalysisResult.likely_scenario,
-            actionable_insight: aiAnalysisResult.short_comment
-          };
-
-          await this.updateJobWithAnalysis(job.id, mappedResult, "COMPLETED");
-          console.log(`✅ İş tamamlandı: ${job.symbol} (Final Score: ${mappedResult.risk_score})`);
-
-          // 4.7 SEND NOTIFICATION IF HIGH RISK
-          await this.sendNotification(job.symbol, mappedResult);
-        } else {
-          throw new Error("Layer 3 AI analysis failed");
-        }
+      if (!jobs || jobs.length === 0) {
+        // No pending jobs available, wait silently
+        return;
       }
-      // If no job available, wait silently
+
+      currentJob = jobs[0]; // Get the first job
+      console.log(`🔄 İş alınıyor: ${currentJob.symbol}`);
+
+      // 4.2 Check 15-minute cache rule
+      const cacheCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const { data: recentJob, error: cacheError } = await supabase
+        .from('analysis_jobs')
+        .select('*')
+        .eq('symbol', currentJob.symbol.replace('USDT', ''))
+        .eq('status', 'COMPLETED')
+        .gte('created_at', cacheCutoff)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (cacheError) {
+        console.error('Cache kontrol hatası:', cacheError);
+      } else if (recentJob) {
+        console.log(`⏰ Cache bulundu (${currentJob.symbol}): ${recentJob.created_at} - Analiz atlanıyor`);
+        await this.updateJobStatus(currentJob.id, "CACHED");
+        return;
+      }
+
+      // 4.3 Prepare technical data (TODO: Real data collection system needed)
+      const coinData = {
+        symbol: currentJob.symbol,
+        priceChangePercent5m: currentJob.price_change,
+        volume: currentJob.volume_spike * 100000, // Estimated volume
+        avgVolume: 100000, // Estimated average
+        marketCap: 10000000, // Estimated market cap (passes >$10M filter)
+        rsi: 70, // Default RSI - needs real calculation
+        totalBidsUSD: 500000, // Default - needs real orderbook
+        totalAsksUSD: 600000, // Default - needs real orderbook
+        volumeToMarketCapRatio: 0.05, // Default - needs calculation
+        priceChangePercent1m: currentJob.price_change
+      };
+
+      // 4.4 Layer 2: Math-based risk scoring
+      const { calculateBaseRiskScore } = await import('./riskScoringService');
+      const riskResult = calculateBaseRiskScore(coinData);
+
+      if (!riskResult) {
+        throw new Error("Risk scoring failed");
+      }
+
+      // 4.5 Layer 3: AI qualitative analysis
+      const orderbookData = JSON.parse(currentJob.orderbook_json || '{}');
+      const layer3Input: Layer3AnalysisInput = {
+        symbol: currentJob.symbol,
+        baseRiskScore: riskResult.base_risk_score,
+        rsi: riskResult.technical_data.rsi,
+        isThin: orderbookData.is_thin || false
+      };
+
+      const aiAnalysisResult = await analyzeWithLayer3AI(layer3Input);
+
+      if (aiAnalysisResult) {
+        // 4.6 Success: Map AI result to database fields
+        const mappedResult = {
+          risk_score: aiAnalysisResult.final_risk_score,
+          summary: aiAnalysisResult.verdict,
+          likely_source: aiAnalysisResult.likely_scenario,
+          actionable_insight: aiAnalysisResult.short_comment
+        };
+
+        await this.updateJobWithAnalysis(currentJob.id, mappedResult, "COMPLETED");
+        console.log(`✅ İş tamamlandı: ${currentJob.symbol} (Final Score: ${mappedResult.risk_score})`);
+
+        // 4.7 Send notification if high risk
+        await this.sendNotification(currentJob.symbol, mappedResult);
+      } else {
+        throw new Error("Layer 3 AI analysis failed");
+      }
     } catch (error) {
       console.error("❌ AI Worker Hatası:", error);
-      if (job) {
-        // 4.8 ERROR HANDLING
-        await this.updateJobStatus(job.id, "FAILED");
-        console.log(`"FAIL" olarak işaretlendi: ${job.symbol} (ID: ${job.id})`);
+      if (currentJob) {
+        // 4.8 Error handling - mark job as failed
+        await this.updateJobStatus(currentJob.id, "FAILED");
+        console.log(`"FAIL" olarak işaretlendi: ${currentJob.symbol} (ID: ${currentJob.id})`);
       }
     } finally {
       this.processingLock = false;
