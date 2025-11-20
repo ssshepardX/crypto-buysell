@@ -273,9 +273,9 @@ const DashboardPage = () => {
                 </div>
                 <div>
                   <p className="text-2xl font-jetbrains font-bold text-emerald-400">
-                    {isGenerating ? 'Active' : 'Scanning'}
+                    {scannerStatus.isActive ? 'Active' : 'Inactive'}
                   </p>
-                  <p className="text-xs text-slate-400">Market Status</p>
+                  <p className="text-xs text-slate-400">Scanner Status</p>
                 </div>
               </div>
             </CardContent>
@@ -289,9 +289,9 @@ const DashboardPage = () => {
                 </div>
                 <div>
                   <p className="text-2xl font-jetbrains font-bold text-yellow-400">
-                    60s
+                    30s
                   </p>
-                  <p className="text-xs text-slate-400">Scan Interval</p>
+                  <p className="text-xs text-slate-400">Supabase Scan Interval</p>
                 </div>
               </div>
             </CardContent>
