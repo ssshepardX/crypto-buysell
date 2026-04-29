@@ -8,6 +8,7 @@ import { useSession } from "@/contexts/SessionContext";
 const Login = () => {
   const navigate = useNavigate();
   const { session } = useSession();
+  const redirectTo = `${window.location.origin}/confirm-email`;
 
   useEffect(() => {
     if (session) {
@@ -32,6 +33,7 @@ const Login = () => {
           supabaseClient={supabase}
           appearance={{ theme: ThemeSupa }}
           providers={['google']}
+          redirectTo={redirectTo}
           theme="dark"
         />
       </div>
