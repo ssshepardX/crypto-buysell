@@ -99,7 +99,7 @@ const DashboardPage = () => {
   return (
     <AppShell
       title={`Dashboard${session?.user?.email ? ` - ${session.user.email.split('@')[0]}` : ''}`}
-      subtitle="Abonelik, kullanim limitleri, scanner ve piyasa analizleri"
+      subtitle="Abonelik, kullanim limitleri, hareket kaynagi ve manipülasyon analizi"
       action={
         <Button onClick={loadDashboard} disabled={isLoading} variant="outline" className="border-slate-700 bg-slate-900">
           <RefreshCw className="mr-2 h-4 w-4" />
@@ -123,9 +123,9 @@ const DashboardPage = () => {
       <Card className="border-slate-800 bg-slate-900">
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <div>
-            <CardTitle className="text-base">Market Scanner</CardTitle>
+            <CardTitle className="text-base">Movement Scanner</CardTitle>
             <p className="mt-1 text-sm text-slate-400">
-              Free kullanicilar gecikmeli sonuc gorur. Manuel scanner tetikleme Trader planinda aciktir.
+              Free kullanicilar gecikmeli sonuc gorur. Manuel scanner hareket sebebi, whale izi ve manipülasyon riskini siniflandirir.
             </p>
           </div>
           <Button onClick={runMarketScan} disabled={isLoading || !entitlement.canRunScanner} className="bg-cyan-500 hover:bg-cyan-600">
@@ -146,7 +146,7 @@ const DashboardPage = () => {
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <div>
             <CardTitle className="text-base">Market Lab</CardTitle>
-            <p className="mt-1 text-sm text-slate-400">Canli chart, teknik indikatorler ve AI Supervisor degerlendirmesi.</p>
+            <p className="mt-1 text-sm text-slate-400">Canli chart, teknik onay, whale izi ve hareket kaynagi degerlendirmesi.</p>
           </div>
           <Button asChild className="bg-cyan-500 hover:bg-cyan-600">
             <Link to="/analysis">
@@ -169,8 +169,8 @@ const DashboardPage = () => {
       {recentAnalyses.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-100">Recent Market Assessments</h2>
-            <Badge className="bg-slate-800 text-slate-300">Cache</Badge>
+            <h2 className="text-lg font-semibold text-slate-100">Son Hareket Teşhisleri</h2>
+            <Badge className="bg-slate-800 text-slate-300">Cause cache</Badge>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {recentAnalyses.slice(0, 6).map((analysis) => (
@@ -182,7 +182,10 @@ const DashboardPage = () => {
                     risk_score: analysis.risk_json.pump_dump_risk_score,
                     price_change: analysis.risk_json.trend_score,
                     volume_spike: analysis.indicator_json.volumeMultiplier,
-                    summary: analysis.ai_summary_json.summary_tr || 'Analysis complete',
+                    summary: analysis.ai_summary_json.catalyst_summary_tr || analysis.ai_summary_json.summary_tr || 'Hareket kaynagi siniflandirildi',
+                    likely_cause: analysis.cause_json?.likely_cause,
+                    confidence: analysis.cause_json?.confidence_score,
+                    early_warning: analysis.cause_json?.early_warning_score,
                   }}
                 />
               </Link>
@@ -193,7 +196,7 @@ const DashboardPage = () => {
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-100">Scanner Results</h2>
+          <h2 className="text-lg font-semibold text-slate-100">Scanner Hareketleri</h2>
           <Badge className="bg-slate-800 text-slate-300">{alerts.length} sonuc</Badge>
         </div>
         {alerts.length > 0 ? (

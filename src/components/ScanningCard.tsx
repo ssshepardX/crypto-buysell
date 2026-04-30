@@ -8,6 +8,9 @@ interface RealData {
   price_change: number;
   volume_spike: number;
   summary: string;
+  likely_cause?: string;
+  confidence?: number;
+  early_warning?: number;
 }
 
 const ScanningCard: React.FC<{ realData: RealData }> = ({ realData }) => {
@@ -29,7 +32,7 @@ const ScanningCard: React.FC<{ realData: RealData }> = ({ realData }) => {
     }, 150);
 
     setTimeout(() => setLoadingText("Hacim Analiz Ediliyor..."), 500);
-    setTimeout(() => setLoadingText("AI Risk Skoru Hesaplanıyor..."), 1200);
+    setTimeout(() => setLoadingText("Hareket Kaynağı Sınıflandırılıyor..."), 1200);
 
     return () => clearInterval(interval);
   }, []);
@@ -57,8 +60,8 @@ const ScanningCard: React.FC<{ realData: RealData }> = ({ realData }) => {
           </div>
 
           <div className="mt-4 text-[10px] font-mono text-slate-600 space-y-1 opacity-50">
-            <p>{'>'} Fetching orderbook depth...</p>
-            <p className={progress > 40 ? 'text-emerald-500' : ''}>{'>'} RSI check completed.</p>
+            <p>{'>'} Orderbook derinliği okunuyor...</p>
+            <p className={progress > 40 ? 'text-emerald-500' : ''}>{'>'} Whale ve likidite izi kontrol edildi.</p>
             <p className={progress > 80 ? 'text-cyan-500' : ''}>{'>'} AI Supervisor connecting...</p>
           </div>
         </div>
@@ -74,18 +77,22 @@ const ScanningCard: React.FC<{ realData: RealData }> = ({ realData }) => {
           <span className="text-xs text-slate-400 font-mono">{new Date(realData.time).toLocaleTimeString()}</span>
         </div>
         <div className={`px-3 py-1 rounded-full text-xs font-bold border ${realData.risk_score > 80 ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'}`}>
-          RİSK: {realData.risk_score}/100
+          UYARI: {realData.early_warning ?? realData.risk_score}/100
         </div>
       </div>
 
       <div className="space-y-3 mb-4">
          <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Fiyat Değişimi</span>
-            <span className="text-emerald-400 font-mono">+{realData.price_change}%</span>
+            <span className="text-slate-400">Hareket Sebebi</span>
+            <span className="text-emerald-400 font-mono">{realData.likely_cause || 'balanced_market'}</span>
          </div>
          <div className="flex justify-between text-sm">
             <span className="text-slate-400">Hacim Patlaması</span>
             <span className="text-cyan-400 font-mono">{realData.volume_spike}x</span>
+         </div>
+         <div className="flex justify-between text-sm">
+            <span className="text-slate-400">Güven</span>
+            <span className="text-slate-200 font-mono">{realData.confidence ?? 0}/100</span>
          </div>
       </div>
 

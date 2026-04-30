@@ -38,6 +38,14 @@ type OrderbookSummary = {
   isThin: boolean;
 };
 
+type TradeSummary = {
+  largeTradeCount: number;
+  largeTradeUsd: number;
+  largestTradeUsd: number;
+  buyPressurePct: number;
+  sellPressurePct: number;
+};
+
 type IndicatorSummary = {
   ema9: number;
   ema21: number;
@@ -59,6 +67,12 @@ type IndicatorSummary = {
   lowerWickPct: number;
   support: number;
   resistance: number;
+  priceAccelerationPct: number;
+  volumeZScore: number;
+  tradeCountZScore: number;
+  candleExpansion: number;
+  rangeBreakoutPct: number;
+  multiTimeframeAgreement: number;
 };
 
 type RiskSummary = {
@@ -71,6 +85,21 @@ type RiskSummary = {
   pump_dump_risk_score: number;
   labels: string[];
   orderbook: OrderbookSummary;
+};
+
+type CauseSummary = {
+  likely_cause: "organic_demand" | "whale_push" | "thin_liquidity_move" | "fomo_trap" | "fraud_pump_risk" | "news_social_catalyst" | "balanced_market";
+  movement_cause_score: {
+    organic: number;
+    whale: number;
+    fraud_pump: number;
+    news_social: number;
+    technical_breakout: number;
+    low_liquidity: number;
+  };
+  confidence_score: number;
+  early_warning_score: number;
+  risk_labels: string[];
 };
 
 type PlanId = "free" | "pro" | "trader";
@@ -290,6 +319,41 @@ async function fetchOrderbook(symbol: string, price: number): Promise<OrderbookS
   };
 }
 
+async function fetchRecentTrades(symbol: string, price: number): Promise<TradeSummary> {
+  const response = await fetch(`https://api.binance.com/api/v3/aggTrades?symbol=${symbol}&limit=500`);
+  if (!response.ok) {
+    return { largeTradeCount: 0, largeTradeUsd: 0, largestTradeUsd: 0, buyPressurePct: 50, sellPressurePct: 50 };
+  }
+
+  const rows = await response.json();
+  const largeThresholdUsd = Math.max(50_000, price * 10);
+  let largeTradeCount = 0;
+  let largeTradeUsd = 0;
+  let largestTradeUsd = 0;
+  let buyUsd = 0;
+  let sellUsd = 0;
+
+  for (const row of rows as Array<{ p: string; q: string; m: boolean }>) {
+    const usd = Number(row.p) * Number(row.q);
+    if (row.m) sellUsd += usd;
+    else buyUsd += usd;
+    if (usd >= largeThresholdUsd) {
+      largeTradeCount += 1;
+      largeTradeUsd += usd;
+      largestTradeUsd = Math.max(largestTradeUsd, usd);
+    }
+  }
+
+  const total = buyUsd + sellUsd;
+  return {
+    largeTradeCount,
+    largeTradeUsd: round(largeTradeUsd, 2),
+    largestTradeUsd: round(largestTradeUsd, 2),
+    buyPressurePct: round(total > 0 ? buyUsd / total * 100 : 50, 2),
+    sellPressurePct: round(total > 0 ? sellUsd / total * 100 : 50, 2),
+  };
+}
+
 function ema(values: number[], period: number): number[] {
   if (values.length < period) return [];
   const multiplier = 2 / (period + 1);
@@ -309,6 +373,20 @@ function sma(values: number[], period: number): number[] {
     result.push(values.slice(i - period + 1, i + 1).reduce((sum, value) => sum + value, 0) / period);
   }
   return result;
+}
+
+function standardDeviation(values: number[]): number {
+  if (values.length === 0) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+  return Math.sqrt(variance);
+}
+
+function zScore(value: number, values: number[]): number {
+  const deviation = standardDeviation(values);
+  if (deviation === 0) return 0;
+  const mean = values.reduce((sum, item) => sum + item, 0) / Math.max(values.length, 1);
+  return (value - mean) / deviation;
 }
 
 function rsi(values: number[], period = 14): number {
@@ -366,6 +444,7 @@ function calculateIndicators(klines: Kline[]): IndicatorSummary {
   const atr14 = atr(klines, 14);
   const recentVolume = quoteVolumes.slice(-21, -1);
   const avgVolume = recentVolume.reduce((sum, value) => sum + value, 0) / Math.max(recentVolume.length, 1);
+  const recentTrades = klines.slice(-31, -1).map((kline) => kline.trades);
   const totalQuote = klines.reduce((sum, kline) => sum + kline.quoteVolume, 0);
   const totalBase = klines.reduce((sum, kline) => sum + kline.volume, 0);
   const takerBuyRatio = last.quoteVolume > 0 ? last.takerBuyQuoteVolume / last.quoteVolume : 0.5;
@@ -374,6 +453,16 @@ function calculateIndicators(klines: Kline[]): IndicatorSummary {
   const upperWickPct = (last.high - Math.max(last.open, last.close)) / candleRange * 100;
   const lowerWickPct = (Math.min(last.open, last.close) - last.low) / candleRange * 100;
   const swingWindow = klines.slice(-40);
+  const previousClose = klines.at(-2)?.close || last.open;
+  const close5 = klines.at(-6)?.close || previousClose;
+  const close10 = klines.at(-11)?.close || close5;
+  const move5 = close5 > 0 ? (last.close - close5) / close5 * 100 : 0;
+  const previousMove5 = close10 > 0 ? (close5 - close10) / close10 * 100 : 0;
+  const recentRanges = klines.slice(-21, -1).map((kline) => kline.high - kline.low);
+  const avgRange = recentRanges.reduce((sum, value) => sum + value, 0) / Math.max(recentRanges.length, 1);
+  const resistance = Math.max(...swingWindow.map((kline) => kline.high));
+  const support = Math.min(...swingWindow.map((kline) => kline.low));
+  const higherTimeframeBias = (last.close > ema21 ? 1 : 0) + (ema9 > ema21 ? 1 : 0) + (ema21 > ema50 ? 1 : 0);
 
   return {
     ema9: round(ema9),
@@ -394,8 +483,14 @@ function calculateIndicators(klines: Kline[]): IndicatorSummary {
     bodyPct: round(bodyPct, 2),
     upperWickPct: round(upperWickPct, 2),
     lowerWickPct: round(lowerWickPct, 2),
-    support: round(Math.min(...swingWindow.map((kline) => kline.low))),
-    resistance: round(Math.max(...swingWindow.map((kline) => kline.high))),
+    support: round(support),
+    resistance: round(resistance),
+    priceAccelerationPct: round(move5 - previousMove5, 2),
+    volumeZScore: round(zScore(last.quoteVolume, recentVolume), 2),
+    tradeCountZScore: round(zScore(last.trades, recentTrades), 2),
+    candleExpansion: round(avgRange > 0 ? candleRange / avgRange : 1, 2),
+    rangeBreakoutPct: round(resistance > 0 ? (last.close - resistance) / resistance * 100 : 0, 2),
+    multiTimeframeAgreement: round(higherTimeframeBias / 3 * 100, 0),
   };
 }
 
@@ -438,6 +533,10 @@ function calculateRisk(indicators: IndicatorSummary, orderbook: OrderbookSummary
   if (reversalRiskScore > 55 && volumeConfirmationScore > 60) labels.push("fomo_trap");
   if (orderbook.isThin) labels.push("thin_orderbook");
   if (whaleRiskScore > 55) labels.push("possible_whale_push");
+  if (indicators.volumeZScore > 3) labels.push("abnormal_volume");
+  if (indicators.tradeCountZScore > 2.5) labels.push("abnormal_trade_count");
+  if (indicators.candleExpansion > 2.2) labels.push("range_expansion");
+  if (indicators.priceAccelerationPct > 1.5) labels.push("price_acceleration");
   if (indicators.rsi14 > 78) labels.push("overbought");
   if (indicators.rsi14 < 28) labels.push("oversold");
   if (labels.length === 0) labels.push("balanced_market");
@@ -455,20 +554,245 @@ function calculateRisk(indicators: IndicatorSummary, orderbook: OrderbookSummary
   };
 }
 
-function fallbackAiSummary(risk: RiskSummary, reason = "missing_ai_api_key", detail = "") {
-  const isBullish = risk.trend_score >= 60 && risk.momentum_score >= 55;
-  const continuation = clamp((risk.trend_score + risk.momentum_score + risk.volume_confirmation_score - risk.reversal_risk_score) / 3);
+function calculateCause(
+  indicators: IndicatorSummary,
+  risk: RiskSummary,
+  orderbook: OrderbookSummary,
+  trades: TradeSummary,
+  social: Record<string, unknown>,
+  news: Record<string, unknown>,
+): CauseSummary {
+  const socialConfidence = Number(social.confidence || social.social_confidence || 0);
+  const newsConfidence = Number(news.confidence || 0);
+  const socialCatalyst = clamp(Number(social.mention_delta || 0) * 7 + socialConfidence * 0.6);
+  const newsCatalyst = clamp(newsConfidence * 0.9 + Number(news.source_count || 0) * 8);
+
+  const technicalBreakout = clamp(
+    risk.trend_score * 0.35 +
+    risk.volume_confirmation_score * 0.25 +
+    Math.max(0, indicators.rangeBreakoutPct) * 10 +
+    indicators.multiTimeframeAgreement * 0.2 +
+    Math.max(0, indicators.priceAccelerationPct) * 3,
+  );
+  const lowLiquidity = clamp(
+    (orderbook.isThin ? 45 : 0) +
+    Math.max(0, orderbook.spreadPct - 0.03) * 250 +
+    Math.abs(orderbook.imbalancePct) * 0.45,
+  );
+  const whale = clamp(
+    risk.whale_risk_score * 0.45 +
+    trades.largeTradeCount * 6 +
+    Math.min(35, trades.largeTradeUsd / 150_000) +
+    Math.max(0, trades.buyPressurePct - 58) * 0.8 +
+    Math.max(0, trades.sellPressurePct - 58) * 0.8,
+  );
+  const fraudPump = clamp(
+    risk.pump_dump_risk_score * 0.45 +
+    risk.reversal_risk_score * 0.25 +
+    lowLiquidity * 0.25 +
+    (indicators.upperWickPct > 40 ? 18 : 0) +
+    (indicators.volumeZScore > 3 ? 15 : 0),
+  );
+  const newsSocial = clamp((socialCatalyst + newsCatalyst) / 2);
+  const organic = clamp(
+    technicalBreakout * 0.45 +
+    risk.momentum_score * 0.25 +
+    risk.volume_confirmation_score * 0.25 -
+    fraudPump * 0.2 -
+    lowLiquidity * 0.15,
+  );
+
+  const scores = {
+    organic: round(organic, 0),
+    whale: round(whale, 0),
+    fraud_pump: round(fraudPump, 0),
+    news_social: round(newsSocial, 0),
+    technical_breakout: round(technicalBreakout, 0),
+    low_liquidity: round(lowLiquidity, 0),
+  };
+  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const top = sorted[0]?.[0] || "balanced_market";
+  const likelyCauseMap: Record<string, CauseSummary["likely_cause"]> = {
+    organic: "organic_demand",
+    whale: "whale_push",
+    fraud_pump: "fraud_pump_risk",
+    news_social: "news_social_catalyst",
+    technical_breakout: "organic_demand",
+    low_liquidity: "thin_liquidity_move",
+  };
+  const likelyCause = sorted[0]?.[1] < 35 ? "balanced_market" : likelyCauseMap[top] || "balanced_market";
+  const confidence = clamp(
+    35 +
+    (orderbook.bidDepthUsd + orderbook.askDepthUsd > 0 ? 15 : 0) +
+    Math.min(20, Math.abs(sorted[0]?.[1] - (sorted[1]?.[1] || 0))) +
+    Math.min(15, newsConfidence / 8) +
+    Math.min(15, socialConfidence / 8),
+  );
+  const earlyWarning = clamp(fraudPump * 0.35 + whale * 0.25 + lowLiquidity * 0.2 + risk.reversal_risk_score * 0.2);
+  const labels = [...risk.labels];
+  if (likelyCause === "news_social_catalyst") labels.push("external_catalyst");
+  if (earlyWarning > 65) labels.push("early_warning_high");
+
+  return {
+    likely_cause: likelyCause,
+    movement_cause_score: scores,
+    confidence_score: round(confidence, 0),
+    early_warning_score: round(earlyWarning, 0),
+    risk_labels: Array.from(new Set(labels)),
+  };
+}
+
+function baseAsset(symbol: string): string {
+  return symbol.replace(/USDT$/, "");
+}
+
+function sentimentFromText(text: string): number {
+  const lower = text.toLowerCase();
+  const positive = ["partnership", "listing", "approval", "upgrade", "surge", "bullish", "accumulation", "breakout", "launch"];
+  const negative = ["hack", "exploit", "lawsuit", "sec", "delist", "scam", "fraud", "rug", "dump", "investigation"];
+  const pos = positive.reduce((sum, word) => sum + (lower.includes(word) ? 1 : 0), 0);
+  const neg = negative.reduce((sum, word) => sum + (lower.includes(word) ? 1 : 0), 0);
+  return clamp(50 + (pos - neg) * 12, 0, 100);
+}
+
+function catalystTerms(text: string): string[] {
+  const terms = ["listing", "partnership", "hack", "exploit", "lawsuit", "sec", "whale", "transfer", "upgrade", "airdrop", "delist", "rug", "scam", "etf", "mainnet"];
+  const lower = text.toLowerCase();
+  return terms.filter((term) => lower.includes(term)).slice(0, 6);
+}
+
+async function fetchNewsSummary(symbol: string) {
+  const key = Deno.env.get("GOOGLE_CUSTOM_SEARCH_API_KEY") || "";
+  const cx = Deno.env.get("GOOGLE_CUSTOM_SEARCH_ENGINE_ID") || "";
+  if (!key || !cx) {
+    return {
+      status: "not_configured",
+      source_count: 0,
+      sentiment_score: null,
+      confidence: 0,
+      top_catalyst_terms: [],
+    };
+  }
+
+  try {
+    const asset = baseAsset(symbol);
+    const query = encodeURIComponent(`${asset} crypto OR ${symbol} listing hack lawsuit partnership whale transfer`);
+    const response = await fetch(`https://www.googleapis.com/customsearch/v1?key=${key}&cx=${cx}&q=${query}&num=5&dateRestrict=d7`);
+    if (!response.ok) throw new Error(`google_cse_${response.status}`);
+    const data = await response.json();
+    const items = Array.isArray(data.items) ? data.items : [];
+    const joined = items.map((item: { title?: string; snippet?: string }) => `${item.title || ""} ${item.snippet || ""}`).join(" ");
+    return {
+      status: "configured",
+      source_count: items.length,
+      sentiment_score: items.length ? round(sentimentFromText(joined), 0) : null,
+      confidence: round(clamp(items.length * 14), 0),
+      top_catalyst_terms: catalystTerms(joined),
+    };
+  } catch (error) {
+    return {
+      status: "provider_error",
+      source_count: 0,
+      sentiment_score: null,
+      confidence: 0,
+      top_catalyst_terms: [],
+      error: error instanceof Error ? error.message : "unknown_error",
+    };
+  }
+}
+
+async function getRedditToken() {
+  const clientId = Deno.env.get("REDDIT_CLIENT_ID") || "";
+  const clientSecret = Deno.env.get("REDDIT_CLIENT_SECRET") || "";
+  const userAgent = Deno.env.get("REDDIT_USER_AGENT") || "shepard-advisor/0.1";
+  if (!clientId || !clientSecret) return null;
+
+  const credentials = btoa(`${clientId}:${clientSecret}`);
+  const response = await fetch("https://www.reddit.com/api/v1/access_token", {
+    method: "POST",
+    headers: {
+      "Authorization": `Basic ${credentials}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": userAgent,
+    },
+    body: "grant_type=client_credentials",
+  });
+  if (!response.ok) throw new Error(`reddit_oauth_${response.status}`);
+  const data = await response.json();
+  return String(data.access_token || "");
+}
+
+async function fetchSocialSummary(symbol: string) {
+  const userAgent = Deno.env.get("REDDIT_USER_AGENT") || "shepard-advisor/0.1";
+  if (!Deno.env.get("REDDIT_CLIENT_ID") || !Deno.env.get("REDDIT_CLIENT_SECRET")) {
+    return {
+      status: "not_configured",
+      mention_delta: null,
+      sentiment_score: null,
+      source_count: 0,
+      top_catalyst_terms: [],
+      confidence: 0,
+      x_status: "not_configured",
+    };
+  }
+
+  try {
+    const token = await getRedditToken();
+    if (!token) throw new Error("reddit_token_missing");
+    const asset = baseAsset(symbol);
+    const query = encodeURIComponent(`${asset} OR ${symbol}`);
+    const response = await fetch(`https://oauth.reddit.com/r/CryptoCurrency/search?q=${query}&restrict_sr=1&sort=new&t=day&limit=25`, {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "User-Agent": userAgent,
+      },
+    });
+    if (!response.ok) throw new Error(`reddit_search_${response.status}`);
+    const data = await response.json();
+    const posts = data?.data?.children?.map((child: { data: { title?: string; selftext?: string; num_comments?: number; score?: number } }) => child.data) || [];
+    const joined = posts.map((post: { title?: string; selftext?: string }) => `${post.title || ""} ${post.selftext || ""}`).join(" ");
+    const engagement = posts.reduce((sum: number, post: { num_comments?: number; score?: number }) => sum + Number(post.num_comments || 0) + Number(post.score || 0), 0);
+    return {
+      status: "configured",
+      mention_delta: posts.length,
+      sentiment_score: posts.length ? round(sentimentFromText(joined), 0) : null,
+      source_count: posts.length,
+      engagement_score: round(clamp(engagement / 8), 0),
+      top_catalyst_terms: catalystTerms(joined),
+      confidence: round(clamp(posts.length * 5 + Math.min(35, engagement / 12)), 0),
+      x_status: Deno.env.get("X_API_BEARER_TOKEN") ? "configured_not_enabled" : "not_configured",
+    };
+  } catch (error) {
+    return {
+      status: "provider_error",
+      mention_delta: null,
+      sentiment_score: null,
+      source_count: 0,
+      top_catalyst_terms: [],
+      confidence: 0,
+      x_status: "not_configured",
+      error: error instanceof Error ? error.message : "unknown_error",
+    };
+  }
+}
+
+function fallbackAiSummary(cause: CauseSummary, risk: RiskSummary, reason = "missing_ai_api_key", detail = "") {
   const riskLevel = risk.pump_dump_risk_score > 70 ? "High" : risk.pump_dump_risk_score > 45 ? "Moderate" : "Low";
   const reasonText = reason === "ai_provider_request_failed"
-    ? "AI provider cagrilari basarisiz oldu; teknik skor fallback ozeti kullanildi."
-    : "AI API key Edge Function runtime icinde okunamadi; teknik skor fallback ozeti kullanildi.";
+    ? "AI provider cagrilari basarisiz oldu; hareket kaynagi skorlariyla fallback ozeti kullanildi."
+    : "AI API key Edge Function runtime icinde okunamadi; hareket kaynagi skorlariyla fallback ozeti kullanildi.";
   return {
-    direction_bias: isBullish ? "up" : risk.momentum_score < 40 ? "down" : "neutral",
-    continuation_probability: round(continuation, 0),
-    risk_level: riskLevel,
+    likely_cause: cause.likely_cause,
+    manipulation_risk: riskLevel,
+    whale_probability: cause.movement_cause_score.whale,
+    catalyst_summary_tr: reasonText,
+    confidence: cause.confidence_score,
     summary_tr: reasonText,
-    watch_points: risk.labels.slice(0, 3),
-    not_advice_notice: "Bu finansal tavsiye değildir; yalnızca piyasa sinyalidir.",
+    watch_points: cause.risk_labels.slice(0, 3),
+    not_advice_notice: "Bu finansal tavsiye degildir; yalnizca piyasa hareketi kaynak analizidir.",
+    direction_bias: "neutral",
+    continuation_probability: cause.early_warning_score,
+    risk_level: riskLevel,
     source: "deterministic_fallback",
     fallback_reason: reason,
     provider_error: detail,
@@ -485,22 +809,30 @@ function parseJsonObject(text: string): Record<string, unknown> {
   }
 }
 
-async function getAiSummary(symbol: string, timeframe: Timeframe, price: number, indicators: IndicatorSummary, risk: RiskSummary, social: Record<string, unknown>) {
+async function getAiSummary(
+  symbol: string,
+  timeframe: Timeframe,
+  price: number,
+  indicators: IndicatorSummary,
+  risk: RiskSummary,
+  cause: CauseSummary,
+  microstructure: Record<string, unknown>,
+  social: Record<string, unknown>,
+  news: Record<string, unknown>,
+) {
   const geminiApiKey = getGeminiApiKey();
   const openRouterApiKey = getOpenRouterApiKey();
-  if (!geminiApiKey && !openRouterApiKey) return fallbackAiSummary(risk);
+  if (!geminiApiKey && !openRouterApiKey) return fallbackAiSummary(cause, risk);
 
   const compactPayload = {
     symbol,
     timeframe,
     price: round(price),
     scores: {
-      trend: risk.trend_score,
-      momentum: risk.momentum_score,
-      volume: risk.volume_confirmation_score,
-      reversal: risk.reversal_risk_score,
-      whale: risk.whale_risk_score,
-      pumpDump: risk.pump_dump_risk_score,
+      cause: cause.movement_cause_score,
+      confidence: cause.confidence_score,
+      earlyWarning: cause.early_warning_score,
+      manipulation: risk.pump_dump_risk_score,
     },
     indicators: {
       rsi14: indicators.rsi14,
@@ -509,11 +841,13 @@ async function getAiSummary(symbol: string, timeframe: Timeframe, price: number,
       volumeMultiplier: indicators.volumeMultiplier,
       takerBuyRatio: indicators.takerBuyRatio,
     },
-    labels: risk.labels,
+    microstructure,
+    labels: cause.risk_labels,
     social,
+    news,
   };
 
-  const prompt = `Kisa ve temkinli bir Turkce kripto piyasa yorumu uret. Ham veriye karar verme; skorlar zaten hesaplandi. JSON disinda metin yazma.\n${JSON.stringify(compactPayload)}\nOutput schema: {"direction_bias":"up|down|neutral","continuation_probability":0-100,"risk_level":"Low|Moderate|High|Critical","summary_tr":"max 2 cumle","watch_points":["max 3 kisa madde"],"not_advice_notice":"Bu finansal tavsiye degildir."}`;
+  const prompt = `Kisa ve temkinli bir Turkce kripto hareket kaynagi analizi uret. Fiyat yonu, al/sat, entry/exit veya kesin tahmin yazma. Kararlar deterministik skorlardan gelir; sadece acikla. JSON disinda metin yazma.\n${JSON.stringify(compactPayload)}\nOutput schema: {"likely_cause":"organic_demand|whale_push|thin_liquidity_move|fomo_trap|fraud_pump_risk|news_social_catalyst|balanced_market","manipulation_risk":"Low|Moderate|High|Critical","whale_probability":0-100,"catalyst_summary_tr":"max 2 cumle","confidence":0-100,"watch_points":["max 3 kisa madde"],"not_advice_notice":"Bu finansal tavsiye degildir; yalnizca piyasa hareketi kaynak analizidir."}`;
 
   const errors: string[] = [];
   for (const model of geminiApiKey ? GEMINI_MODELS : []) {
@@ -537,7 +871,7 @@ async function getAiSummary(symbol: string, timeframe: Timeframe, price: number,
       const data = await response.json();
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
       return {
-        ...fallbackAiSummary(risk),
+        ...fallbackAiSummary(cause, risk),
         ...parseJsonObject(text),
         source: model,
         fallback_reason: null,
@@ -583,7 +917,7 @@ async function getAiSummary(symbol: string, timeframe: Timeframe, price: number,
       const data = await response.json();
       const text = data.choices?.[0]?.message?.content || "{}";
       return {
-        ...fallbackAiSummary(risk),
+        ...fallbackAiSummary(cause, risk),
         ...parseJsonObject(text),
         source: data.model || OPENROUTER_MODEL,
         fallback_reason: null,
@@ -596,7 +930,7 @@ async function getAiSummary(symbol: string, timeframe: Timeframe, price: number,
     }
   }
 
-  return fallbackAiSummary(risk, "ai_provider_request_failed", errors.join(" | ").slice(0, 600));
+  return fallbackAiSummary(cause, risk, "ai_provider_request_failed", errors.join(" | ").slice(0, 600));
 }
 
 async function readCached(symbol: string, timeframe: Timeframe) {
@@ -631,50 +965,97 @@ async function analyzeCoin(symbolInput: string, timeframeInput: string, auth: Au
   const timeframe = TIMEFRAMES.includes(timeframeInput as Timeframe) ? timeframeInput as Timeframe : "15m";
   if (!force) {
     const cached = await readCached(symbol, timeframe);
-    if (cached) return { ...cached, cache_hit: true, usage_counted: false };
+    if (cached?.cause_json && Object.keys(cached.cause_json).length > 0) {
+      return { ...cached, cache_hit: true, usage_counted: false };
+    }
   }
 
   const klines = await fetchKlines(symbol, timeframe);
   if (klines.length < 60) throw new Error("Not enough candle data");
 
   const price = klines.at(-1)?.close || 0;
-  const [orderbook, indicators] = await Promise.all([
+  const [orderbook, trades, indicators, social, news] = await Promise.all([
     fetchOrderbook(symbol, price),
+    fetchRecentTrades(symbol, price),
     Promise.resolve(calculateIndicators(klines)),
+    fetchSocialSummary(symbol),
+    fetchNewsSummary(symbol),
   ]);
   const risk = calculateRisk(indicators, orderbook, price);
-  const social = {
-    tweet_count_delta: null,
-    sentiment_score: null,
-    source_region: null,
-    social_confidence: null,
-    status: "not_configured",
+  const microstructure = {
+    orderbook,
+    trades,
+    taker_buy_ratio: indicators.takerBuyRatio,
+    abnormal_volume: indicators.volumeZScore,
+    abnormal_trade_count: indicators.tradeCountZScore,
+    candle_expansion: indicators.candleExpansion,
+  };
+  const cause = calculateCause(indicators, risk, orderbook, trades, social, news);
+  const confidence = {
+    confidence_score: cause.confidence_score,
+    data_quality: {
+      binance_klines: "ok",
+      orderbook: orderbook.bidDepthUsd + orderbook.askDepthUsd > 0 ? "ok" : "unavailable",
+      trades: trades.largeTradeCount >= 0 ? "ok" : "unavailable",
+      social: social.status,
+      news: news.status,
+    },
   };
   const recentAiSummary = await readRecentAiSummary(symbol, timeframe);
   if (!recentAiSummary) {
     await assertCanGenerateAi(auth);
   }
-  const aiSummary = recentAiSummary || await getAiSummary(symbol, timeframe, price, indicators, risk, social);
+  const aiSummary = recentAiSummary || await getAiSummary(symbol, timeframe, price, indicators, risk, cause, microstructure, social, news);
   if (!recentAiSummary) {
     await incrementUsage(auth.userId, "ai_analysis_count");
   }
   const expiresAt = new Date(Date.now() + ttlMinutes(timeframe) * 60 * 1000).toISOString();
+  const baseInsert = {
+    symbol,
+    timeframe,
+    price,
+    indicator_json: indicators,
+    risk_json: risk,
+    social_json: social,
+    ai_summary_json: aiSummary,
+    expires_at: expiresAt,
+  };
   const { data, error } = await supabase
     .from("coin_analyses")
     .insert({
-      symbol,
-      timeframe,
-      price,
-      indicator_json: indicators,
-      risk_json: risk,
-      social_json: social,
-      ai_summary_json: aiSummary,
-      expires_at: expiresAt,
+      ...baseInsert,
+      cause_json: cause,
+      market_microstructure_json: microstructure,
+      news_json: news,
+      confidence_json: confidence,
     })
     .select("*")
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    const missingNewColumns = ["cause_json", "market_microstructure_json", "news_json", "confidence_json"]
+      .some((column) => error.message.includes(column));
+    if (!missingNewColumns) throw new Error(error.message);
+
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("coin_analyses")
+      .insert(baseInsert)
+      .select("*")
+      .single();
+    if (fallbackError) throw new Error(fallbackError.message);
+    return {
+      ...fallbackData,
+      cause_json: cause,
+      market_microstructure_json: microstructure,
+      news_json: news,
+      confidence_json: confidence,
+      cache_hit: false,
+      ai_cache_hit: Boolean(recentAiSummary),
+      usage_counted: !recentAiSummary,
+      schema_fallback: true,
+    };
+  }
+
   return { ...data, cache_hit: false, ai_cache_hit: Boolean(recentAiSummary), usage_counted: !recentAiSummary };
 }
 
@@ -691,7 +1072,14 @@ async function scanMarket(auth: AuthContext) {
     try {
       const result = await analyzeCoin(symbol, "15m", auth, false);
       const risk = result.risk_json as RiskSummary;
-      if (risk.pump_dump_risk_score >= 45 || risk.volume_confirmation_score >= 65 || risk.whale_risk_score >= 55) {
+      const cause = result.cause_json as CauseSummary | undefined;
+      if (
+        risk.pump_dump_risk_score >= 45 ||
+        risk.volume_confirmation_score >= 65 ||
+        risk.whale_risk_score >= 55 ||
+        (cause?.early_warning_score || 0) >= 55 ||
+        (cause?.confidence_score || 0) >= 70
+      ) {
         analyzed.push(result);
       }
       if (analyzed.length >= 12) break;

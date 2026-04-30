@@ -112,7 +112,7 @@ const CoinAnalysis = () => {
   return (
     <AppShell
       title="Coin Analiz Terminali"
-      subtitle="Canli chart, teknik skor, piyasa riski ve AI Supervisor degerlendirmesi"
+      subtitle="Canli chart, teknik onay, whale izi ve hareket kaynagi degerlendirmesi"
       action={<Badge className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300">AI Supervisor</Badge>}
     >
       <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
@@ -220,7 +220,7 @@ const CoinAnalysis = () => {
               </CardTitle>
               {aiSummary && (
                 <Badge className="bg-slate-800 text-slate-200">
-                  Bias: {aiSummary.direction_bias}
+                  Kaynak: {analysis?.cause_json?.likely_cause || aiSummary.likely_cause || 'balanced_market'}
                 </Badge>
               )}
             </CardHeader>
@@ -234,9 +234,9 @@ const CoinAnalysis = () => {
           {analysis && risk && indicators && aiSummary && (
             <>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <MetricCard icon={TrendingUp} label="Trend" value={risk.trend_score} />
-                <MetricCard icon={Activity} label="Momentum" value={risk.momentum_score} />
-                <MetricCard icon={ShieldAlert} label="Pump/Dump Riski" value={risk.pump_dump_risk_score} danger />
+                <MetricCard icon={TrendingUp} label="Hareket Sebebi" value={analysis.cause_json?.movement_cause_score.technical_breakout ?? risk.trend_score} />
+                <MetricCard icon={Activity} label="Güven Skoru" value={analysis.cause_json?.confidence_score ?? 0} />
+                <MetricCard icon={ShieldAlert} label="Manipülasyon Riski" value={analysis.cause_json?.early_warning_score ?? risk.pump_dump_risk_score} danger />
               </div>
 
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -250,6 +250,8 @@ const CoinAnalysis = () => {
                   {entitlement.canViewAdvancedRisk ? (
                     <CardContent className="grid grid-cols-2 gap-3 text-sm">
                       <InfoLine label="Whale Risk" value={`${risk.whale_risk_score}/100`} />
+                      <InfoLine label="Buy Pressure" value={`${analysis.market_microstructure_json?.trades.buyPressurePct ?? 0}%`} />
+                      <InfoLine label="Large Trades" value={String(analysis.market_microstructure_json?.trades.largeTradeCount ?? 0)} />
                       <InfoLine label="Reversal Risk" value={`${risk.reversal_risk_score}/100`} />
                       <InfoLine label="Volume Confirm" value={`${risk.volume_confirmation_score}/100`} />
                       <InfoLine label="Spread" value={`${risk.orderbook.spreadPct}%`} />
@@ -276,12 +278,70 @@ const CoinAnalysis = () => {
                     <InfoLine label="RSI 14" value={String(indicators.rsi14)} />
                     <InfoLine label="MACD Hist" value={String(indicators.macdHistogram)} />
                     <InfoLine label="ATR %" value={`${indicators.atrPct}%`} />
-                    <InfoLine label="Volume Spike" value={`${indicators.volumeMultiplier}x`} />
+                    <InfoLine label="Volume Z" value={String(indicators.volumeZScore)} />
+                    <InfoLine label="Candle Expansion" value={`${indicators.candleExpansion}x`} />
                     <InfoLine label="Support" value={formatUsd(indicators.support)} />
                     <InfoLine label="Resistance" value={formatUsd(indicators.resistance)} />
                   </CardContent>
                 </Card>
               </div>
+
+              <Card className="border-slate-800 bg-slate-900">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <AlertTriangle className="h-4 w-4 text-cyan-400" />
+                    Hareket Sebebi
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="rounded-md border border-slate-800 bg-slate-950 p-4">
+                    <div className="text-xs text-slate-500">Likely Cause</div>
+                    <div className="mt-1 text-xl font-semibold text-slate-100">{analysis.cause_json?.likely_cause || aiSummary.likely_cause || 'balanced_market'}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
+                    <InfoLine label="Organic" value={`${analysis.cause_json?.movement_cause_score.organic ?? 0}/100`} />
+                    <InfoLine label="Whale" value={`${analysis.cause_json?.movement_cause_score.whale ?? 0}/100`} />
+                    <InfoLine label="Fraud/Pump" value={`${analysis.cause_json?.movement_cause_score.fraud_pump ?? 0}/100`} />
+                    <InfoLine label="News/Social" value={`${analysis.cause_json?.movement_cause_score.news_social ?? 0}/100`} />
+                    <InfoLine label="Low Liquidity" value={`${analysis.cause_json?.movement_cause_score.low_liquidity ?? 0}/100`} />
+                    <InfoLine label="Teknik Onay" value={`${analysis.cause_json?.movement_cause_score.technical_breakout ?? 0}/100`} />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-slate-800 bg-slate-900">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Waves className="h-4 w-4 text-emerald-400" />
+                    News / Social Katalizör
+                  </CardTitle>
+                </CardHeader>
+                {entitlement.canViewAdvancedRisk ? (
+                  <CardContent className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+                    <InfoLine label="News Sources" value={String(analysis.news_json?.source_count ?? 0)} />
+                    <InfoLine label="News Confidence" value={`${analysis.news_json?.confidence ?? 0}/100`} />
+                    <InfoLine label="Reddit Mentions" value={String(analysis.social_json?.mention_delta ?? 0)} />
+                    <InfoLine label="Social Confidence" value={`${analysis.social_json?.confidence ?? 0}/100`} />
+                    <div className="col-span-2 rounded-md border border-slate-800 bg-slate-950 p-3 md:col-span-4">
+                      <div className="text-xs text-slate-500">Catalyst Terms</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {[...(analysis.news_json?.top_catalyst_terms || []), ...(analysis.social_json?.top_catalyst_terms || [])].slice(0, 8).map((term) => (
+                          <Badge key={term} variant="outline" className="border-slate-700 text-slate-300">{term}</Badge>
+                        ))}
+                        {!(analysis.news_json?.top_catalyst_terms?.length || analysis.social_json?.top_catalyst_terms?.length) && (
+                          <span className="text-sm text-slate-500">Katalizör terim bulunamadi veya provider konfigure degil.</span>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                ) : (
+                  <CardContent>
+                    <div className="rounded-md border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200">
+                      News/social source breakdown Pro/Trader planlarinda aciktir.
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
 
               <Card className="border-cyan-500/20 bg-cyan-950/20">
                 <CardHeader>
@@ -291,12 +351,13 @@ const CoinAnalysis = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-lg leading-relaxed text-slate-100">{aiSummary.summary_tr}</p>
+                  <p className="text-lg leading-relaxed text-slate-100">{aiSummary.catalyst_summary_tr || aiSummary.summary_tr}</p>
                   <div className="flex flex-wrap gap-2">
-                    <Badge className={cn('bg-slate-800', scoreColor(aiSummary.continuation_probability))}>
-                      Devam ihtimali: {aiSummary.continuation_probability}%
+                    <Badge className={cn('bg-slate-800', scoreColor(aiSummary.whale_probability ?? analysis.cause_json?.movement_cause_score.whale ?? 0))}>
+                      Whale izi: {aiSummary.whale_probability ?? analysis.cause_json?.movement_cause_score.whale ?? 0}%
                     </Badge>
-                    <Badge className="bg-slate-800">Risk: {aiSummary.risk_level}</Badge>
+                    <Badge className="bg-slate-800">Manipülasyon: {aiSummary.manipulation_risk || aiSummary.risk_level}</Badge>
+                    <Badge className="bg-slate-800">Güven: {aiSummary.confidence ?? analysis.cause_json?.confidence_score ?? 0}/100</Badge>
                   </div>
                   <div className="grid gap-2 md:grid-cols-3">
                     {aiSummary.watch_points.map((point) => (

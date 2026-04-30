@@ -23,6 +23,12 @@ export interface IndicatorSummary {
   lowerWickPct: number;
   support: number;
   resistance: number;
+  priceAccelerationPct: number;
+  volumeZScore: number;
+  tradeCountZScore: number;
+  candleExpansion: number;
+  rangeBreakoutPct: number;
+  multiTimeframeAgreement: number;
 }
 
 export interface RiskSummary {
@@ -44,16 +50,26 @@ export interface RiskSummary {
 }
 
 export interface SocialSummary {
-  tweet_count_delta: number | null;
+  mention_delta?: number | null;
+  tweet_count_delta?: number | null;
   sentiment_score: number | null;
-  source_region: string | null;
-  social_confidence: number | null;
+  source_region?: string | null;
+  social_confidence?: number | null;
+  source_count?: number;
+  top_catalyst_terms?: string[];
+  confidence?: number;
   status: string;
+  x_status?: string;
 }
 
 export interface AiSummary {
-  direction_bias: 'up' | 'down' | 'neutral';
-  continuation_probability: number;
+  likely_cause?: string;
+  manipulation_risk?: 'Low' | 'Moderate' | 'High' | 'Critical';
+  whale_probability?: number;
+  catalyst_summary_tr?: string;
+  confidence?: number;
+  direction_bias?: 'up' | 'down' | 'neutral';
+  continuation_probability?: number;
   risk_level: 'Low' | 'Moderate' | 'High' | 'Critical';
   summary_tr: string;
   watch_points: string[];
@@ -64,6 +80,44 @@ export interface AiSummary {
   provider_error?: string;
 }
 
+export interface CauseSummary {
+  likely_cause: string;
+  movement_cause_score: {
+    organic: number;
+    whale: number;
+    fraud_pump: number;
+    news_social: number;
+    technical_breakout: number;
+    low_liquidity: number;
+  };
+  confidence_score: number;
+  early_warning_score: number;
+  risk_labels: string[];
+}
+
+export interface NewsSummary {
+  status: string;
+  source_count: number;
+  sentiment_score: number | null;
+  confidence: number;
+  top_catalyst_terms: string[];
+}
+
+export interface MarketMicrostructure {
+  orderbook: RiskSummary['orderbook'];
+  trades: {
+    largeTradeCount: number;
+    largeTradeUsd: number;
+    largestTradeUsd: number;
+    buyPressurePct: number;
+    sellPressurePct: number;
+  };
+  taker_buy_ratio: number;
+  abnormal_volume: number;
+  abnormal_trade_count: number;
+  candle_expansion: number;
+}
+
 export interface CoinAnalysis {
   id: string;
   symbol: string;
@@ -72,6 +126,13 @@ export interface CoinAnalysis {
   indicator_json: IndicatorSummary;
   risk_json: RiskSummary;
   social_json: SocialSummary;
+  cause_json?: CauseSummary;
+  market_microstructure_json?: MarketMicrostructure;
+  news_json?: NewsSummary;
+  confidence_json?: {
+    confidence_score: number;
+    data_quality: Record<string, string>;
+  };
   ai_summary_json: AiSummary;
   created_at: string;
   expires_at: string;

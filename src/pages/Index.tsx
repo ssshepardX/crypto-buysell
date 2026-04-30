@@ -2,7 +2,7 @@ import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
-import { TrendingUp, ShieldCheck, Zap } from "lucide-react";
+import { Search, ShieldCheck, Waves } from "lucide-react";
 import LivePriceTicker from "@/components/LivePriceTicker";
 import TrendingCoins from "@/components/TrendingCoins";
 import Head from "@/components/Head";
@@ -19,21 +19,21 @@ const Index = () => {
       </div>
       <Head
         title="AI Market Analyst - Crypto AI Advisor Platform"
-        description="Advanced AI-powered cryptocurrency market analysis platform. Get intelligent trading advice, risk assessments, and market anomaly detection across 200+ cryptocurrencies."
+        description="Crypto market movement intelligence platform. Understand sudden price moves, whale traces, fraud risk, and social/news catalysts."
       />
       <Navbar />
       <main className="relative z-10 flex-grow">
         {/* Hero Section */}
         <section className="container mx-auto text-center pt-20 pb-12 lg:pt-32 lg:pb-20 animate-fade-in-up">
           <h1 className="text-4xl md:text-6xl font-inter font-bold tracking-tight mb-4 bg-gradient-to-r from-cyan-300 to-slate-400 text-transparent bg-clip-text">
-            AI-Powered Crypto Advisors
+            Crypto Movement Intelligence
           </h1>
           <p className="text-lg md:text-xl text-slate-400 font-inter max-w-3xl mx-auto mb-8 leading-relaxed">
-            Get intelligent AI analysis & risk assessments across 200+ cryptocurrencies. Detect market anomalies, understand price movements, and make data-based trading decisions.
+            Ani fiyat hareketlerinin kaynağını incele: organik talep mi, whale itişi mi, düşük likidite mi, yoksa sosyal/news katalizörüyle şişen riskli bir hareket mi?
           </p>
           <Link to="/login">
             <Button size="lg" className="bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-600 hover:to-sky-600 text-white font-inter font-medium px-8 py-3 rounded-lg transition-all hover:shadow-[0_0_30px_rgba(6,182,212,0.4)]">
-              Start Getting AI Advice
+              Hareketleri İncele
             </Button>
           </Link>
         </section>
@@ -48,15 +48,15 @@ const Index = () => {
         >
           <div className="container mx-auto relative z-10">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-inter font-bold text-slate-200 mb-4">AI Advisor Features</h2>
-              <p className="text-slate-400 font-inter max-w-2xl mx-auto">Smart analysis tools that help you understand and navigate the crypto market intelligently</p>
+              <h2 className="text-3xl font-inter font-bold text-slate-200 mb-4">Movement Intelligence</h2>
+              <p className="text-slate-400 font-inter max-w-2xl mx-auto">Trade sinyali değil; hareket sebebi, manipülasyon riski ve kaynak güveni.</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-8">
               {[
-                { icon: <TrendingUp className="h-8 w-8 text-emerald-400" />, title: "Real-time Analysis", description: "Continuous AI monitoring of price movements, volume spikes and market sentiment across thousands of trades." },
-                { icon: <ShieldCheck className="h-8 w-8 text-cyan-400" />, title: "Risk Intelligence", description: "Advanced algorithms assess market risks, whale activity, and manipulation patterns to protect your investments." },
-                { icon: <Zap className="h-8 w-8 text-yellow-400" />, title: "Smart Signals", description: "Receive actionable AI recommendations with clear entry/exit points and risk management strategies." }
+                { icon: <Search className="h-8 w-8 text-emerald-400" />, title: "Hareket Sebebi", description: "Teknik, hacim, orderbook ve haber/sosyal sinyalleriyle ani hareketin olası kaynağını sınıflandırır." },
+                { icon: <ShieldCheck className="h-8 w-8 text-cyan-400" />, title: "Manipülasyon Riski", description: "Whale izi, ince orderbook, wick rejection ve hacim anomalilerini birlikte değerlendirir." },
+                { icon: <Waves className="h-8 w-8 text-yellow-400" />, title: "Katalizör Takibi", description: "Google news/search ve Reddit kaynaklarından aggregate sentiment ve katalizör terimleri üretir." }
               ].map((feature, index) => (
                 <Card
                   key={index}
