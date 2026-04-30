@@ -330,17 +330,23 @@ function calculateRisk(indicators: IndicatorSummary, orderbook: OrderbookSummary
   };
 }
 
-function fallbackAiSummary(risk: RiskSummary) {
+function fallbackAiSummary(risk: RiskSummary, reason = "missing_gemini_api_key", detail = "") {
   const isBullish = risk.trend_score >= 60 && risk.momentum_score >= 55;
   const continuation = clamp((risk.trend_score + risk.momentum_score + risk.volume_confirmation_score - risk.reversal_risk_score) / 3);
   const riskLevel = risk.pump_dump_risk_score > 70 ? "High" : risk.pump_dump_risk_score > 45 ? "Moderate" : "Low";
+  const reasonText = reason === "gemini_request_failed"
+    ? "Gemini API cagrisi basarisiz oldu; teknik skor fallback ozeti kullanildi."
+    : "GEMINI_API_KEY Edge Function runtime icinde okunamadi; teknik skor fallback ozeti kullanildi.";
   return {
     direction_bias: isBullish ? "up" : risk.momentum_score < 40 ? "down" : "neutral",
     continuation_probability: round(continuation, 0),
     risk_level: riskLevel,
-    summary_tr: "Teknik skorlar algoritmik olarak hesaplandı. AI özeti için GEMINI_API_KEY Supabase secrets içinde tanımlanmalı.",
+    summary_tr: reasonText,
     watch_points: risk.labels.slice(0, 3),
     not_advice_notice: "Bu finansal tavsiye değildir; yalnızca piyasa sinyalidir.",
+    source: "deterministic_fallback",
+    fallback_reason: reason,
+    gemini_error: detail,
   };
 }
 
@@ -386,13 +392,20 @@ async function getAiSummary(symbol: string, timeframe: Timeframe, price: number,
         },
       }),
     });
-    if (!response.ok) throw new Error(`Gemini failed: ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`gemini_http_${response.status}: ${errorText.slice(0, 180)}`);
+    }
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-    return { ...fallbackAiSummary(risk), ...JSON.parse(text) };
+    return { ...fallbackAiSummary(risk), ...JSON.parse(text), source: "gemini-2.5-flash" };
   } catch (error) {
     console.error("AI summary failed:", error);
-    return fallbackAiSummary(risk);
+    return fallbackAiSummary(
+      risk,
+      "gemini_request_failed",
+      error instanceof Error ? error.message : "unknown_error",
+    );
   }
 }
 
@@ -407,6 +420,20 @@ async function readCached(symbol: string, timeframe: Timeframe) {
     .limit(1)
     .maybeSingle();
   return data;
+}
+
+async function readRecentAiSummary(symbol: string, timeframe: Timeframe) {
+  const minCreatedAt = new Date(Date.now() - ttlMinutes(timeframe) * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from("coin_analyses")
+    .select("ai_summary_json")
+    .eq("symbol", symbol)
+    .eq("timeframe", timeframe)
+    .gte("created_at", minCreatedAt)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.ai_summary_json || null;
 }
 
 async function analyzeCoin(symbolInput: string, timeframeInput: string, force = false) {
@@ -433,7 +460,8 @@ async function analyzeCoin(symbolInput: string, timeframeInput: string, force = 
     social_confidence: null,
     status: "not_configured",
   };
-  const aiSummary = await getAiSummary(symbol, timeframe, price, indicators, risk, social);
+  const recentAiSummary = await readRecentAiSummary(symbol, timeframe);
+  const aiSummary = recentAiSummary || await getAiSummary(symbol, timeframe, price, indicators, risk, social);
   const expiresAt = new Date(Date.now() + ttlMinutes(timeframe) * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from("coin_analyses")
@@ -451,7 +479,7 @@ async function analyzeCoin(symbolInput: string, timeframeInput: string, force = 
     .single();
 
   if (error) throw new Error(error.message);
-  return { ...data, cache_hit: false };
+  return { ...data, cache_hit: false, ai_cache_hit: Boolean(recentAiSummary) };
 }
 
 async function scanMarket() {

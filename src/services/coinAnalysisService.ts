@@ -58,6 +58,9 @@ export interface AiSummary {
   summary_tr: string;
   watch_points: string[];
   not_advice_notice: string;
+  source?: 'gemini-2.5-flash' | 'deterministic_fallback';
+  fallback_reason?: 'missing_gemini_api_key' | 'gemini_request_failed';
+  gemini_error?: string;
 }
 
 export interface CoinAnalysis {
@@ -72,6 +75,7 @@ export interface CoinAnalysis {
   created_at: string;
   expires_at: string;
   cache_hit?: boolean;
+  ai_cache_hit?: boolean;
 }
 
 export async function analyzeCoin(
