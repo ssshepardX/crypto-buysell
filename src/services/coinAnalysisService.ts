@@ -58,9 +58,10 @@ export interface AiSummary {
   summary_tr: string;
   watch_points: string[];
   not_advice_notice: string;
-  source?: 'gemini-2.5-flash' | 'deterministic_fallback';
-  fallback_reason?: 'missing_gemini_api_key' | 'gemini_request_failed';
+  source?: string;
+  fallback_reason?: 'missing_ai_api_key' | 'ai_provider_request_failed' | null;
   gemini_error?: string;
+  provider_error?: string;
 }
 
 export interface CoinAnalysis {

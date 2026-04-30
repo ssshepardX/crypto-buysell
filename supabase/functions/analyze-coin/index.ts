@@ -7,6 +7,13 @@ const corsHeaders = {
 };
 
 const TIMEFRAMES = ["5m", "15m", "30m", "1h", "4h"] as const;
+const GEMINI_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
+] as const;
+const OPENROUTER_MODEL = "openrouter/free";
 type Timeframe = typeof TIMEFRAMES[number];
 
 type Kline = {
@@ -76,6 +83,10 @@ function getGeminiApiKey(): string {
     Deno.env.get("GOOGLE_API_KEY") ||
     Deno.env.get("GOOGLE_GENERATIVE_AI_API_KEY") ||
     "";
+}
+
+function getOpenRouterApiKey(): string {
+  return Deno.env.get("OPENROUTER_API_KEY") || "";
 }
 
 function clamp(value: number, min = 0, max = 100): number {
@@ -330,13 +341,13 @@ function calculateRisk(indicators: IndicatorSummary, orderbook: OrderbookSummary
   };
 }
 
-function fallbackAiSummary(risk: RiskSummary, reason = "missing_gemini_api_key", detail = "") {
+function fallbackAiSummary(risk: RiskSummary, reason = "missing_ai_api_key", detail = "") {
   const isBullish = risk.trend_score >= 60 && risk.momentum_score >= 55;
   const continuation = clamp((risk.trend_score + risk.momentum_score + risk.volume_confirmation_score - risk.reversal_risk_score) / 3);
   const riskLevel = risk.pump_dump_risk_score > 70 ? "High" : risk.pump_dump_risk_score > 45 ? "Moderate" : "Low";
-  const reasonText = reason === "gemini_request_failed"
-    ? "Gemini API cagrisi basarisiz oldu; teknik skor fallback ozeti kullanildi."
-    : "GEMINI_API_KEY Edge Function runtime icinde okunamadi; teknik skor fallback ozeti kullanildi.";
+  const reasonText = reason === "ai_provider_request_failed"
+    ? "AI provider cagrilari basarisiz oldu; teknik skor fallback ozeti kullanildi."
+    : "AI API key Edge Function runtime icinde okunamadi; teknik skor fallback ozeti kullanildi.";
   return {
     direction_bias: isBullish ? "up" : risk.momentum_score < 40 ? "down" : "neutral",
     continuation_probability: round(continuation, 0),
@@ -346,13 +357,24 @@ function fallbackAiSummary(risk: RiskSummary, reason = "missing_gemini_api_key",
     not_advice_notice: "Bu finansal tavsiye değildir; yalnızca piyasa sinyalidir.",
     source: "deterministic_fallback",
     fallback_reason: reason,
-    gemini_error: detail,
+    provider_error: detail,
   };
+}
+
+function parseJsonObject(text: string): Record<string, unknown> {
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("model_returned_non_json");
+    return JSON.parse(match[0]);
+  }
 }
 
 async function getAiSummary(symbol: string, timeframe: Timeframe, price: number, indicators: IndicatorSummary, risk: RiskSummary, social: Record<string, unknown>) {
   const geminiApiKey = getGeminiApiKey();
-  if (!geminiApiKey) return fallbackAiSummary(risk);
+  const openRouterApiKey = getOpenRouterApiKey();
+  if (!geminiApiKey && !openRouterApiKey) return fallbackAiSummary(risk);
 
   const compactPayload = {
     symbol,
@@ -379,34 +401,88 @@ async function getAiSummary(symbol: string, timeframe: Timeframe, price: number,
 
   const prompt = `Kisa ve temkinli bir Turkce kripto piyasa yorumu uret. Ham veriye karar verme; skorlar zaten hesaplandi. JSON disinda metin yazma.\n${JSON.stringify(compactPayload)}\nOutput schema: {"direction_bias":"up|down|neutral","continuation_probability":0-100,"risk_level":"Low|Moderate|High|Critical","summary_tr":"max 2 cumle","watch_points":["max 3 kisa madde"],"not_advice_notice":"Bu finansal tavsiye degildir."}`;
 
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.25,
-          maxOutputTokens: 350,
-          responseMimeType: "application/json",
-        },
-      }),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`gemini_http_${response.status}: ${errorText.slice(0, 180)}`);
+  const errors: string[] = [];
+  for (const model of geminiApiKey ? GEMINI_MODELS : []) {
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.25,
+            maxOutputTokens: 350,
+            responseMimeType: "application/json",
+          },
+        }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`${model}: gemini_http_${response.status}: ${errorText.slice(0, 180)}`);
+      }
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+      return {
+        ...fallbackAiSummary(risk),
+        ...parseJsonObject(text),
+        source: model,
+        fallback_reason: null,
+        provider_error: "",
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown_error";
+      errors.push(message);
+      console.error("AI summary failed:", message);
     }
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-    return { ...fallbackAiSummary(risk), ...JSON.parse(text), source: "gemini-2.5-flash" };
-  } catch (error) {
-    console.error("AI summary failed:", error);
-    return fallbackAiSummary(
-      risk,
-      "gemini_request_failed",
-      error instanceof Error ? error.message : "unknown_error",
-    );
   }
+
+  if (openRouterApiKey) {
+    try {
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openRouterApiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://wwdnuxpzsmdbeffhdsoy.supabase.co",
+          "X-OpenRouter-Title": "Crypto BuySell AI Analyst",
+        },
+        body: JSON.stringify({
+          model: OPENROUTER_MODEL,
+          messages: [
+            {
+              role: "system",
+              content: "Return only valid compact JSON. Do not include markdown.",
+            },
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          temperature: 0.25,
+          max_tokens: 350,
+        }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`${OPENROUTER_MODEL}: openrouter_http_${response.status}: ${errorText.slice(0, 180)}`);
+      }
+      const data = await response.json();
+      const text = data.choices?.[0]?.message?.content || "{}";
+      return {
+        ...fallbackAiSummary(risk),
+        ...parseJsonObject(text),
+        source: data.model || OPENROUTER_MODEL,
+        fallback_reason: null,
+        provider_error: "",
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown_error";
+      errors.push(message);
+      console.error("OpenRouter summary failed:", message);
+    }
+  }
+
+  return fallbackAiSummary(risk, "ai_provider_request_failed", errors.join(" | ").slice(0, 600));
 }
 
 async function readCached(symbol: string, timeframe: Timeframe) {
