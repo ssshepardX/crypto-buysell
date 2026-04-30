@@ -73,10 +73,43 @@ type RiskSummary = {
   orderbook: OrderbookSummary;
 };
 
+type PlanId = "free" | "pro" | "trader";
+
+type Entitlement = {
+  aiDailyLimit: number;
+  canRunScanner: boolean;
+};
+
+type AuthContext = {
+  userId: string;
+  email: string | null;
+  plan: PlanId;
+  entitlement: Entitlement;
+};
+
+class ApiError extends Error {
+  status: number;
+  code: string;
+  details: Record<string, unknown>;
+
+  constructor(status: number, code: string, message: string, details: Record<string, unknown> = {}) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
+}
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+const ENTITLEMENTS: Record<PlanId, Entitlement> = {
+  free: { aiDailyLimit: 3, canRunScanner: false },
+  pro: { aiDailyLimit: 50, canRunScanner: false },
+  trader: { aiDailyLimit: 250, canRunScanner: true },
+};
 
 function getGeminiApiKey(): string {
   return Deno.env.get("GEMINI_API_KEY") ||
@@ -87,6 +120,87 @@ function getGeminiApiKey(): string {
 
 function getOpenRouterApiKey(): string {
   return Deno.env.get("OPENROUTER_API_KEY") || "";
+}
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function normalizePlan(plan: string | null | undefined): PlanId {
+  if (plan === "pro" || plan === "trader") return plan;
+  return "free";
+}
+
+async function getAuthContext(req: Request): Promise<AuthContext> {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    throw new ApiError(401, "AUTH_REQUIRED", "Oturum gerekli.");
+  }
+
+  const token = authHeader.replace("Bearer ", "");
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) {
+    throw new ApiError(401, "AUTH_INVALID", "Oturum dogrulanamadi.");
+  }
+
+  const { data: subscription } = await supabase
+    .from("user_subscriptions")
+    .select("plan")
+    .eq("user_id", data.user.id)
+    .eq("active", true)
+    .in("status", ["active", "trialing"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const plan = normalizePlan(subscription?.plan);
+  return {
+    userId: data.user.id,
+    email: data.user.email || null,
+    plan,
+    entitlement: ENTITLEMENTS[plan],
+  };
+}
+
+async function getTodayUsage(userId: string): Promise<{ ai_analysis_count: number; scanner_run_count: number }> {
+  const { data } = await supabase
+    .from("user_usage_daily")
+    .select("ai_analysis_count, scanner_run_count")
+    .eq("user_id", userId)
+    .eq("usage_date", todayIsoDate())
+    .maybeSingle();
+
+  return {
+    ai_analysis_count: Number(data?.ai_analysis_count || 0),
+    scanner_run_count: Number(data?.scanner_run_count || 0),
+  };
+}
+
+async function assertCanGenerateAi(auth: AuthContext) {
+  const usage = await getTodayUsage(auth.userId);
+  if (usage.ai_analysis_count >= auth.entitlement.aiDailyLimit) {
+    throw new ApiError(403, "AI_LIMIT_REACHED", "Gunluk AI analiz limitin doldu. Devam etmek icin plani yukselt.", {
+      plan: auth.plan,
+      used: usage.ai_analysis_count,
+      limit: auth.entitlement.aiDailyLimit,
+    });
+  }
+}
+
+async function incrementUsage(userId: string, field: "ai_analysis_count" | "scanner_run_count") {
+  const usage = await getTodayUsage(userId);
+  const next = {
+    user_id: userId,
+    usage_date: todayIsoDate(),
+    ai_analysis_count: usage.ai_analysis_count + (field === "ai_analysis_count" ? 1 : 0),
+    scanner_run_count: usage.scanner_run_count + (field === "scanner_run_count" ? 1 : 0),
+  };
+
+  const { error } = await supabase
+    .from("user_usage_daily")
+    .upsert(next, { onConflict: "user_id,usage_date" });
+
+  if (error) throw new Error(error.message);
 }
 
 function clamp(value: number, min = 0, max = 100): number {
@@ -512,12 +626,12 @@ async function readRecentAiSummary(symbol: string, timeframe: Timeframe) {
   return data?.ai_summary_json || null;
 }
 
-async function analyzeCoin(symbolInput: string, timeframeInput: string, force = false) {
+async function analyzeCoin(symbolInput: string, timeframeInput: string, auth: AuthContext, force = false) {
   const symbol = normalizeSymbol(symbolInput);
   const timeframe = TIMEFRAMES.includes(timeframeInput as Timeframe) ? timeframeInput as Timeframe : "15m";
   if (!force) {
     const cached = await readCached(symbol, timeframe);
-    if (cached) return { ...cached, cache_hit: true };
+    if (cached) return { ...cached, cache_hit: true, usage_counted: false };
   }
 
   const klines = await fetchKlines(symbol, timeframe);
@@ -537,7 +651,13 @@ async function analyzeCoin(symbolInput: string, timeframeInput: string, force = 
     status: "not_configured",
   };
   const recentAiSummary = await readRecentAiSummary(symbol, timeframe);
+  if (!recentAiSummary) {
+    await assertCanGenerateAi(auth);
+  }
   const aiSummary = recentAiSummary || await getAiSummary(symbol, timeframe, price, indicators, risk, social);
+  if (!recentAiSummary) {
+    await incrementUsage(auth.userId, "ai_analysis_count");
+  }
   const expiresAt = new Date(Date.now() + ttlMinutes(timeframe) * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from("coin_analyses")
@@ -555,15 +675,21 @@ async function analyzeCoin(symbolInput: string, timeframeInput: string, force = 
     .single();
 
   if (error) throw new Error(error.message);
-  return { ...data, cache_hit: false, ai_cache_hit: Boolean(recentAiSummary) };
+  return { ...data, cache_hit: false, ai_cache_hit: Boolean(recentAiSummary), usage_counted: !recentAiSummary };
 }
 
-async function scanMarket() {
+async function scanMarket(auth: AuthContext) {
+  if (!auth.entitlement.canRunScanner) {
+    throw new ApiError(403, "SCANNER_REQUIRES_TRADER", "Market scanner tetikleme Trader planinda aciktir.", {
+      plan: auth.plan,
+    });
+  }
+  await incrementUsage(auth.userId, "scanner_run_count");
   const symbols = await fetchTopSymbols(40);
   const analyzed = [];
   for (const symbol of symbols) {
     try {
-      const result = await analyzeCoin(symbol, "15m", false);
+      const result = await analyzeCoin(symbol, "15m", auth, false);
       const risk = result.risk_json as RiskSummary;
       if (risk.pump_dump_risk_score >= 45 || risk.volume_confirmation_score >= 65 || risk.whale_risk_score >= 55) {
         analyzed.push(result);
@@ -593,18 +719,25 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
+    const auth = await getAuthContext(req);
     if (body.mode === "scan-market") {
-      const analyses = await scanMarket();
+      const analyses = await scanMarket(auth);
       return new Response(JSON.stringify({ analyses, scanned_at: new Date().toISOString() }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const analysis = await analyzeCoin(body.symbol || "BTCUSDT", body.timeframe || "15m", Boolean(body.force));
+    const analysis = await analyzeCoin(body.symbol || "BTCUSDT", body.timeframe || "15m", auth, Boolean(body.force));
     return new Response(JSON.stringify({ analysis }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    if (error instanceof ApiError) {
+      return new Response(JSON.stringify({ error: error.message, code: error.code, ...error.details }), {
+        status: error.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

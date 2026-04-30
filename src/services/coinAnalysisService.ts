@@ -77,6 +77,23 @@ export interface CoinAnalysis {
   expires_at: string;
   cache_hit?: boolean;
   ai_cache_hit?: boolean;
+  usage_counted?: boolean;
+}
+
+export class CoinAnalysisError extends Error {
+  code?: string;
+  plan?: string;
+  used?: number;
+  limit?: number;
+
+  constructor(message: string, details: Partial<CoinAnalysisError> = {}) {
+    super(message);
+    this.name = 'CoinAnalysisError';
+    this.code = details.code;
+    this.plan = details.plan;
+    this.used = details.used;
+    this.limit = details.limit;
+  }
 }
 
 export async function analyzeCoin(
@@ -90,11 +107,11 @@ export async function analyzeCoin(
   });
 
   if (error) {
-    throw new Error(error.message || 'Coin analysis failed');
+    throw new CoinAnalysisError(error.message || 'Coin analysis failed');
   }
 
   if (data?.error) {
-    throw new Error(data.error);
+    throw new CoinAnalysisError(data.error, data);
   }
 
   return data.analysis as CoinAnalysis;
@@ -107,11 +124,11 @@ export async function scanMarket(): Promise<CoinAnalysis[]> {
   });
 
   if (error) {
-    throw new Error(error.message || 'Market scan failed');
+    throw new CoinAnalysisError(error.message || 'Market scan failed');
   }
 
   if (data?.error) {
-    throw new Error(data.error);
+    throw new CoinAnalysisError(data.error, data);
   }
 
   return data.analyses as CoinAnalysis[];

@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   Activity,
   AlertTriangle,
-  ArrowLeft,
   BarChart3,
   Brain,
   CandlestickChart,
@@ -12,6 +11,7 @@ import {
   TrendingUp,
   Waves,
 } from 'lucide-react';
+import AppShell from '@/components/AppShell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,9 +21,17 @@ import RealMarketChart from '@/components/RealMarketChart';
 import { getTop200CoinsByVolume, CoinData } from '@/services/binanceService';
 import {
   AnalysisTimeframe,
+  CoinAnalysisError,
   CoinAnalysis as CoinAnalysisData,
   analyzeCoin,
 } from '@/services/coinAnalysisService';
+import {
+  getCurrentSubscription,
+  getTodayUsage,
+  PLAN_ENTITLEMENTS,
+  UserSubscription,
+  UserUsageDaily,
+} from '@/services/subscriptionService';
 
 const TIMEFRAMES: AnalysisTimeframe[] = ['5m', '15m', '30m', '1h', '4h'];
 
@@ -47,11 +55,18 @@ const CoinAnalysis = () => {
   const [timeframe, setTimeframe] = useState<AnalysisTimeframe>('15m');
   const [analysis, setAnalysis] = useState<CoinAnalysisData | null>(null);
   const [marketCoins, setMarketCoins] = useState<CoinData[]>([]);
+  const [subscription, setSubscription] = useState<UserSubscription | null>(null);
+  const [usage, setUsage] = useState<UserUsageDaily | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    Promise.all([getCurrentSubscription(), getTodayUsage()]).then(([sub, today]) => {
+      if (cancelled) return;
+      setSubscription(sub);
+      setUsage(today);
+    });
     getTop200CoinsByVolume().then((coins) => {
       if (cancelled) return;
       const ranked = coins
@@ -76,8 +91,14 @@ const CoinAnalysis = () => {
     try {
       const result = await analyzeCoin(symbol, timeframe, force);
       setAnalysis(result);
+      const today = await getTodayUsage();
+      setUsage(today);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Analiz calistirilamadi');
+      if (err instanceof CoinAnalysisError && err.code === 'AI_LIMIT_REACHED') {
+        setError(`Gunluk AI analiz limitin doldu (${err.used}/${err.limit}). Devam etmek icin plani yukselt.`);
+      } else {
+        setError(err instanceof Error ? err.message : 'Analiz calistirilamadi');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -86,29 +107,15 @@ const CoinAnalysis = () => {
   const aiSummary = analysis?.ai_summary_json;
   const risk = analysis?.risk_json;
   const indicators = analysis?.indicator_json;
+  const entitlement = PLAN_ENTITLEMENTS[subscription?.plan || 'free'];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="border-b border-white/10 bg-slate-950/90">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
-          <div className="flex items-center gap-3">
-            <Button asChild variant="outline" size="icon" className="border-slate-700 bg-slate-900">
-              <Link to="/dashboard">
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-            <div>
-              <h1 className="text-xl font-semibold">Coin Analiz Terminali</h1>
-              <p className="text-sm text-slate-400">Gercek zamanli teknik skor, piyasa riski ve kisa AI degerlendirmesi</p>
-            </div>
-          </div>
-          <Badge className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
-            AI Supervisor
-          </Badge>
-        </div>
-      </div>
-
-      <main className="mx-auto grid max-w-7xl gap-5 px-4 py-5 lg:grid-cols-[320px_1fr]">
+    <AppShell
+      title="Coin Analiz Terminali"
+      subtitle="Canli chart, teknik skor, piyasa riski ve AI Supervisor degerlendirmesi"
+      action={<Badge className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300">AI Supervisor</Badge>}
+    >
+      <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
         <section className="space-y-4">
           <Card className="border-slate-800 bg-slate-900">
             <CardHeader>
@@ -186,6 +193,9 @@ const CoinAnalysis = () => {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="text-3xl font-bold">{formatUsd(Number(analysis.price))}</div>
+                <div className="rounded-md border border-slate-800 bg-slate-950 p-3 text-xs text-slate-400">
+                  Plan: <span className="text-slate-200">{subscription?.plan.toUpperCase() || 'FREE'}</span> - AI kullanim: {usage?.ai_analysis_count || 0}/{entitlement.aiDailyLimit}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {risk?.labels.map((label) => (
                     <Badge key={label} variant="outline" className="border-slate-700 text-slate-300">
@@ -194,7 +204,7 @@ const CoinAnalysis = () => {
                   ))}
                 </div>
                 <p className="text-xs text-slate-500">
-                  {analysis.cache_hit ? 'Cache kullanildi' : 'Yeni analiz olusturuldu'} - {new Date(analysis.created_at).toLocaleString()}
+                  {analysis.cache_hit ? 'Cache kullanildi' : analysis.ai_cache_hit ? 'AI cache kullanildi' : 'Yeni analiz olusturuldu'} - {new Date(analysis.created_at).toLocaleString()}
                 </p>
               </CardContent>
             </Card>
@@ -237,14 +247,22 @@ const CoinAnalysis = () => {
                       Risk ve Whale Kontrolu
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="grid grid-cols-2 gap-3 text-sm">
-                    <InfoLine label="Whale Risk" value={`${risk.whale_risk_score}/100`} />
-                    <InfoLine label="Reversal Risk" value={`${risk.reversal_risk_score}/100`} />
-                    <InfoLine label="Volume Confirm" value={`${risk.volume_confirmation_score}/100`} />
-                    <InfoLine label="Spread" value={`${risk.orderbook.spreadPct}%`} />
-                    <InfoLine label="Orderbook" value={risk.orderbook.isThin ? 'Thin' : 'Normal'} />
-                    <InfoLine label="Bid/Ask Imbalance" value={`${risk.orderbook.imbalancePct}%`} />
-                  </CardContent>
+                  {entitlement.canViewAdvancedRisk ? (
+                    <CardContent className="grid grid-cols-2 gap-3 text-sm">
+                      <InfoLine label="Whale Risk" value={`${risk.whale_risk_score}/100`} />
+                      <InfoLine label="Reversal Risk" value={`${risk.reversal_risk_score}/100`} />
+                      <InfoLine label="Volume Confirm" value={`${risk.volume_confirmation_score}/100`} />
+                      <InfoLine label="Spread" value={`${risk.orderbook.spreadPct}%`} />
+                      <InfoLine label="Orderbook" value={risk.orderbook.isThin ? 'Thin' : 'Normal'} />
+                      <InfoLine label="Bid/Ask Imbalance" value={`${risk.orderbook.imbalancePct}%`} />
+                    </CardContent>
+                  ) : (
+                    <CardContent>
+                      <div className="rounded-md border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200">
+                        Advanced risk ve whale paneli Pro/Trader planlarinda aciktir.
+                      </div>
+                    </CardContent>
+                  )}
                 </Card>
 
                 <Card className="border-slate-800 bg-slate-900">
@@ -293,8 +311,8 @@ const CoinAnalysis = () => {
             </>
           )}
         </section>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 };
 
