@@ -115,8 +115,8 @@ const DashboardPage = () => {
         totalScans: response.alerts.length
       });
 
-      console.log(`📊 Fetched ${response.alerts.length} alerts from Supabase`);
-      console.log('🔄 Last update:', response.timestamp);
+      console.log(`Fetched ${response.alerts.length} alerts from Supabase`);
+      console.log('Last update:', response.timestamp);
     } catch (error) {
       console.error('Failed to fetch alerts:', error);
       setScanResults([]);
@@ -219,7 +219,7 @@ const DashboardPage = () => {
                 AI Market Analyst
               </h1>
               <p className="text-slate-400 font-jetbrains text-xs">
-                Crypto pump & dump detection
+                Market intelligence dashboard
               </p>
             </div>
           </div>
@@ -241,7 +241,7 @@ const DashboardPage = () => {
               <Button asChild size="sm" className="hidden sm:flex bg-cyan-500 hover:bg-cyan-600">
                 <Link to="/analysis">
                   <BarChart3 className="h-4 w-4 mr-2" />
-                  Coin Analyze
+                  Market Lab
                 </Link>
               </Button>
               <Settings className="h-5 w-5 text-slate-400 cursor-pointer hover:text-cyan-400 transition-colors" />
@@ -261,7 +261,7 @@ const DashboardPage = () => {
                 Welcome back, {session?.user?.email?.split('@')[0]}
               </h2>
               <p className="text-slate-400 font-inter">
-                Your AI-powered market surveillance system is actively monitoring real-time anomalies
+                Real-time crypto market signals, risk scoring and chart-based analysis
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -345,10 +345,10 @@ const DashboardPage = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
             <div>
               <h3 className="text-lg font-inter font-semibold text-slate-200">
-                Supabase Market Surveillance Control
+                Market Scanner Control
               </h3>
               <p className="text-sm text-slate-400">
-                Background scanning on Supabase Edge Functions - {scannerStatus.totalScans} scans completed
+                Background scanning and anomaly scoring - {scannerStatus.totalScans} scans completed
               </p>
             </div>
             <div className="flex gap-2">
@@ -359,7 +359,7 @@ const DashboardPage = () => {
                 className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
               >
                 <Zap className="h-4 w-4 mr-2" />
-                Run Market Scan
+                Scan Market
               </Button>
               <Button
                 onClick={fetchScanResults}
@@ -385,7 +385,7 @@ const DashboardPage = () => {
               Last update: {scannerStatus.lastScanTime ? new Date(scannerStatus.lastScanTime).toLocaleString() : 'Never'}
             </p>
             <p className="text-xs text-slate-400 mt-1">
-              System scans every 30 seconds in Supabase Edge Runtime
+              System scans every 30 seconds
             </p>
           </div>
         </div>
@@ -395,16 +395,16 @@ const DashboardPage = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
             <div>
               <h3 className="text-lg font-inter font-semibold text-slate-200">
-                Coin Direction & Risk Analysis
+                Market Analysis Lab
               </h3>
               <p className="text-sm text-slate-400">
-                Select a coin, choose 5m/15m/30m/1h/4h and get deterministic technical + whale scoring with a short Gemini summary.
+                Open a dynamic pair, inspect live candles and request a compact AI Supervisor assessment.
               </p>
             </div>
             <Button asChild className="bg-cyan-500 hover:bg-cyan-600">
               <Link to="/analysis">
                 <Brain className="h-4 w-4 mr-2" />
-                Open Analysis Terminal
+                Open Market Lab
               </Link>
             </Button>
           </div>
@@ -429,10 +429,10 @@ const DashboardPage = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-inter font-semibold text-slate-200">
-                Latest Coin Analyses
+                Recent Market Assessments
               </h3>
               <span className="text-sm text-slate-400 font-jetbrains">
-                Cached edge results
+                Cached analysis results
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -458,12 +458,12 @@ const DashboardPage = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-inter font-semibold text-slate-200">
-              Supabase AI Scanner Results
+              Scanner Results
             </h3>
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${scannerStatus.isActive ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
               <span className="text-sm text-slate-400 font-jetbrains">
-                Supabase Edge Runtime Active
+                Scanner Active
               </span>
             </div>
           </div>
@@ -501,14 +501,14 @@ const DashboardPage = () => {
             <div className="text-center py-12 bg-slate-950/50 backdrop-blur-md border border-white/10 rounded-xl">
               <Brain className="h-16 w-16 mx-auto mb-4 text-slate-600 animate-pulse" />
               <h4 className="text-lg font-inter font-medium text-slate-400 mb-2">
-                Supabase Scanner Waiting for Anomalies
+                Scanner Waiting for Anomalies
               </h4>
               <p className="text-slate-500 text-sm max-w-md mx-auto">
                 No anomalies detected yet. The scanner is actively monitoring the top 200 cryptocurrencies
-                and will display results here when pump/dump patterns are identified.
+                and will display results here when high-risk patterns are identified.
               </p>
               <div className="mt-4 text-xs text-slate-400">
-                Console'da tarama logları görünmeli: "🔍 Starting market scan..."
+                Scanner logs are available in the browser console.
               </div>
             </div>
           )}

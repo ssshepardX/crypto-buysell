@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Activity,
@@ -12,20 +12,13 @@ import {
   TrendingUp,
   Waves,
 } from 'lucide-react';
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import RealMarketChart from '@/components/RealMarketChart';
+import { getTop200CoinsByVolume, CoinData } from '@/services/binanceService';
 import {
   AnalysisTimeframe,
   CoinAnalysis as CoinAnalysisData,
@@ -33,8 +26,6 @@ import {
 } from '@/services/coinAnalysisService';
 
 const TIMEFRAMES: AnalysisTimeframe[] = ['5m', '15m', '30m', '1h', '4h'];
-
-const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT'];
 
 const scoreColor = (score: number) => {
   if (score >= 75) return 'text-rose-400';
@@ -50,37 +41,34 @@ const formatUsd = (value: number) => (
   })
 );
 
-const buildSyntheticChart = (analysis: CoinAnalysisData | null) => {
-  if (!analysis) return [];
-  const indicator = analysis.indicator_json;
-  const price = Number(analysis.price);
-  const support = Number(indicator.support || price * 0.98);
-  const resistance = Number(indicator.resistance || price * 1.02);
-  const trendLift = (analysis.risk_json.trend_score - 50) / 1000;
-
-  return Array.from({ length: 28 }).map((_, index) => {
-    const progress = index / 27;
-    const wave = Math.sin(index / 2.2) * price * 0.003;
-    const drift = price * trendLift * (progress - 0.5);
-    return {
-      label: `${index + 1}`,
-      price: Number((support + (resistance - support) * progress + wave + drift).toFixed(6)),
-      vwap: indicator.vwap,
-      support,
-      resistance,
-    };
-  });
-};
-
 const CoinAnalysis = () => {
   const { symbol: routeSymbol } = useParams();
   const [symbol, setSymbol] = useState((routeSymbol || 'BTCUSDT').toUpperCase());
   const [timeframe, setTimeframe] = useState<AnalysisTimeframe>('15m');
   const [analysis, setAnalysis] = useState<CoinAnalysisData | null>(null);
+  const [marketCoins, setMarketCoins] = useState<CoinData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const chartData = useMemo(() => buildSyntheticChart(analysis), [analysis]);
+  useEffect(() => {
+    let cancelled = false;
+    getTop200CoinsByVolume().then((coins) => {
+      if (cancelled) return;
+      const ranked = coins
+        .filter((coin) => coin.symbol.endsWith('USDT'))
+        .sort((a, b) => {
+          const aScore = Math.abs(a.priceChangePercent) * 0.65 + Math.log10(Math.max(a.quoteVolume, 1)) * 0.35;
+          const bScore = Math.abs(b.priceChangePercent) * 0.65 + Math.log10(Math.max(b.quoteVolume, 1)) * 0.35;
+          return bScore - aScore;
+        })
+        .slice(0, 12);
+      setMarketCoins(ranked);
+      if (!routeSymbol && ranked[0]?.symbol) setSymbol(ranked[0].symbol);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [routeSymbol]);
 
   const runAnalysis = async (force = false) => {
     setIsLoading(true);
@@ -111,11 +99,11 @@ const CoinAnalysis = () => {
             </Button>
             <div>
               <h1 className="text-xl font-semibold">Coin Analiz Terminali</h1>
-              <p className="text-sm text-slate-400">Teknik skor, whale riski ve dusuk tokenli AI yorumu</p>
+              <p className="text-sm text-slate-400">Gercek zamanli teknik skor, piyasa riski ve kisa AI degerlendirmesi</p>
             </div>
           </div>
           <Badge className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
-            Gemini yalnizca ozet icin kullanilir
+            AI Supervisor
           </Badge>
         </div>
       </div>
@@ -131,23 +119,24 @@ const CoinAnalysis = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-xs text-slate-400">Sembol</label>
+                <label className="text-xs text-slate-400">Parite</label>
                 <Input
                   value={symbol}
                   onChange={(event) => setSymbol(event.target.value.toUpperCase())}
                   className="border-slate-700 bg-slate-950 font-mono"
                 />
                 <div className="flex flex-wrap gap-2">
-                  {DEFAULT_SYMBOLS.map((item) => (
+                  {marketCoins.map((coin) => (
                     <Button
-                      key={item}
+                      key={coin.symbol}
                       type="button"
                       size="sm"
-                      variant={symbol === item ? 'default' : 'outline'}
-                      onClick={() => setSymbol(item)}
+                      variant={symbol === coin.symbol ? 'default' : 'outline'}
+                      onClick={() => setSymbol(coin.symbol)}
                       className="h-7 px-2 text-xs"
+                      title={`${coin.priceChangePercent.toFixed(2)}% / Vol ${Math.round(coin.quoteVolume).toLocaleString('en-US')}`}
                     >
-                      {item.replace('USDT', '')}
+                      {coin.symbol.replace('USDT', '')}
                     </Button>
                   ))}
                 </div>
@@ -174,7 +163,7 @@ const CoinAnalysis = () => {
               <div className="grid grid-cols-2 gap-2">
                 <Button onClick={() => runAnalysis(false)} disabled={isLoading}>
                   <Brain className="mr-2 h-4 w-4" />
-                  AI Yorumu Al
+                  Degerlendir
                 </Button>
                 <Button onClick={() => runAnalysis(true)} disabled={isLoading} variant="outline">
                   <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} />
@@ -217,7 +206,7 @@ const CoinAnalysis = () => {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-base">
                 <BarChart3 className="h-4 w-4 text-cyan-400" />
-                TradingView Tarzi Piyasa Paneli
+                Piyasa Chart
               </CardTitle>
               {aiSummary && (
                 <Badge className="bg-slate-800 text-slate-200">
@@ -227,31 +216,7 @@ const CoinAnalysis = () => {
             </CardHeader>
             <CardContent>
               <div className="h-[360px] rounded-lg border border-slate-800 bg-slate-950 p-3">
-                {analysis ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData}>
-                      <defs>
-                        <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.45} />
-                          <stop offset="95%" stopColor="#22d3ee" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
-                      <XAxis dataKey="label" stroke="#64748b" tick={{ fontSize: 11 }} />
-                      <YAxis stroke="#64748b" tick={{ fontSize: 11 }} domain={['dataMin', 'dataMax']} />
-                      <Tooltip
-                        contentStyle={{ background: '#020617', border: '1px solid #334155', color: '#e2e8f0' }}
-                      />
-                      <Area type="monotone" dataKey="price" stroke="#22d3ee" fill="url(#priceGradient)" strokeWidth={2} />
-                      <Area type="monotone" dataKey="vwap" stroke="#a78bfa" fill="transparent" strokeDasharray="4 4" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex h-full flex-col items-center justify-center text-center text-slate-500">
-                    <CandlestickChart className="mb-3 h-10 w-10" />
-                    <p>Bir coin ve zaman araligi secip analiz baslat.</p>
-                  </div>
-                )}
+                <RealMarketChart symbol={symbol} timeframe={timeframe} analysis={analysis} />
               </div>
             </CardContent>
           </Card>
@@ -304,7 +269,7 @@ const CoinAnalysis = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Brain className="h-4 w-4 text-cyan-300" />
-                    Gemini 2.5 Flash Yorumu
+                    AI Supervisor
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">

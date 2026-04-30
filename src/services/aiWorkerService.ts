@@ -70,7 +70,7 @@ class AIWorkerService {
       }
 
       currentJob = jobs[0]; // Get the first job
-      console.log(`🔄 İş alınıyor: ${currentJob.symbol}`);
+      console.log(`Is aliniyor: ${currentJob.symbol}`);
 
       // 4.2 Check 15-minute cache rule
       const cacheCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
