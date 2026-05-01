@@ -24,7 +24,7 @@ type LanguageContextValue = {
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 const storageKey = 'shepard-language';
-const cacheKey = 'shepard-translation-cache';
+const cacheKey = 'shepard-translation-cache-v2';
 
 function detectLanguage(): AppLanguage {
   const saved = window.localStorage.getItem(storageKey) as AppLanguage | null;
@@ -58,7 +58,7 @@ const LanguageProvider = ({ children }: { children: ReactNode }) => {
   }, [language]);
 
   const translateMany = useCallback(async (texts: string[]) => {
-    if (language === 'tr') return;
+    if (language === 'en') return;
     const uniqueTexts = Array.from(new Set(texts.filter(Boolean)));
     const missing = uniqueTexts.filter((text) => !cache[`${language}:${text}`]);
     if (!missing.length) return;
@@ -81,7 +81,7 @@ const LanguageProvider = ({ children }: { children: ReactNode }) => {
     language,
     languages,
     setLanguage,
-    translate: (text: string) => language === 'tr' ? text : cache[`${language}:${text}`] || text,
+    translate: (text: string) => language === 'en' ? text : cache[`${language}:${text}`] || text,
     translateMany,
   }), [cache, language, setLanguage, translateMany]);
 
@@ -97,7 +97,7 @@ export function useLanguage() {
 export function Trans({ text }: { text: string }) {
   const { translate, translateMany, language } = useLanguage();
   useEffect(() => {
-    if (language !== 'tr') void translateMany([text]);
+    if (language !== 'en') void translateMany([text]);
   }, [language, text, translateMany]);
   return <>{translate(text)}</>;
 }

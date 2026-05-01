@@ -107,7 +107,7 @@ serve(async (req) => {
     });
   }
 
-  if (targetLanguage === "tr") {
+  if (targetLanguage === "en") {
     return new Response(JSON.stringify({ translations: texts, source: "identity" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
