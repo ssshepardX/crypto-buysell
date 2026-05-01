@@ -36,7 +36,14 @@ export type ContactMessage = {
 
 async function callAdmin<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('admin-api', { method: 'POST', body });
-  if (error) throw new Error(error.message);
+  if (error) {
+    const context = 'context' in error ? error.context : null;
+    if (context instanceof Response) {
+      const details = await context.json().catch(() => null);
+      if (details?.error) throw new Error(details.error);
+    }
+    throw new Error(error.message);
+  }
   if (data?.error) throw new Error(data.error);
   return data as T;
 }

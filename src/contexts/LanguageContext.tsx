@@ -1,15 +1,10 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-export type AppLanguage = 'tr' | 'en' | 'de' | 'es' | 'fr' | 'ar' | 'ru';
+export type AppLanguage = 'tr' | 'en';
 
 const languages: Array<{ code: AppLanguage; label: string }> = [
   { code: 'tr', label: 'Türkçe' },
   { code: 'en', label: 'English' },
-  { code: 'de', label: 'Deutsch' },
-  { code: 'es', label: 'Español' },
-  { code: 'fr', label: 'Français' },
-  { code: 'ar', label: 'العربية' },
-  { code: 'ru', label: 'Русский' },
 ];
 
 type LanguageContextValue = {
@@ -41,6 +36,12 @@ const dictionary: Partial<Record<AppLanguage, Record<string, string>>> = {
     'Contact form': 'İletişim formu',
     'Payment complete': 'Ödeme tamamlandı',
     'Payment canceled': 'Ödeme iptal edildi',
+    'Admin login': 'Admin girişi',
+    'Private access.': 'Özel erişim.',
+    'Users, plans, messages.': 'Kullanıcılar, planlar, mesajlar.',
+    'Send feedback or support request.': 'Geri bildirim veya destek talebi gönder.',
+    'Message sent.': 'Mesaj gönderildi.',
+    'Message failed.': 'Mesaj gönderilemedi.',
   },
 };
 
@@ -58,12 +59,12 @@ const LanguageProvider = ({ children }: { children: ReactNode }) => {
     setLanguageState(next);
     window.localStorage.setItem(storageKey, next);
     document.documentElement.lang = next;
-    document.documentElement.dir = next === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.dir = 'ltr';
   }, []);
 
   useEffect(() => {
     document.documentElement.lang = language;
-    document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.dir = 'ltr';
   }, [language]);
 
   const value = useMemo<LanguageContextValue>(() => ({

@@ -32,7 +32,7 @@ function isAdminEmail(email?: string | null) {
 async function listAdminData() {
   const [{ data: authUsers }, { data: profiles }, { data: subs }, { data: usage }, { data: messages }] = await Promise.all([
     supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
-    supabase.from("profiles").select("id, role, display_name, last_seen_at, satisfaction"),
+    supabase.from("profiles").select("id, display_name, last_seen_at, satisfaction"),
     supabase.from("user_subscriptions").select("*").eq("active", true),
     supabase.from("user_usage_daily").select("*").eq("usage_date", new Date().toISOString().slice(0, 10)),
     supabase.from("contact_messages").select("*").order("created_at", { ascending: false }).limit(100),
@@ -57,7 +57,7 @@ async function listAdminData() {
       last_sign_in_at: user.last_sign_in_at,
       online: lastSeen > now - 5 * 60 * 1000,
       last_seen_at: profile?.last_seen_at || null,
-      role: profile?.role || "user",
+      role: isAdminEmail(user.email) ? "admin" : "user",
       satisfaction: profile?.satisfaction || null,
       subscription: sub || null,
       days_left: daysLeft,

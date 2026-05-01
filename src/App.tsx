@@ -18,6 +18,7 @@ const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const CoinAnalysis = lazy(() => import("./pages/CoinAnalysis"));
 const ConfirmEmail = lazy(() => import("./pages/ConfirmEmail"));
+const VerifyOtp = lazy(() => import("./pages/VerifyOtp"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const About = lazy(() => import("./pages/About"));
@@ -80,11 +81,13 @@ const App = () => (
                   <Route path="/" element={<Index />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/confirm-email" element={<ConfirmEmail />} />
+                  <Route path="/verify-otp" element={<VerifyOtp />} />
                   <Route path="/pricing" element={<Pricing />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/contact" element={<Contact />} />
                   <Route path="/terms" element={<Terms />} />
                   <Route path="/privacy" element={<Privacy />} />
+                  <Route path="/admin" element={<Admin />} />
 
                   {/* Protected Routes */}
                   <Route element={<ProtectedRoute />}>
@@ -93,7 +96,6 @@ const App = () => (
                     <Route path="/analysis/:symbol" element={<CoinAnalysis />} />
                     <Route path="/payment/success" element={<PaymentResult />} />
                     <Route path="/payment/cancel" element={<PaymentResult />} />
-                    <Route path="/admin" element={<Admin />} />
                   </Route>
 
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

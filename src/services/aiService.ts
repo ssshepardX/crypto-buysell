@@ -303,7 +303,7 @@ function getDefaultLayer3Analysis(input: Layer3AnalysisInput): Layer3AIResult {
   if (input.baseRiskScore >= 70) {
     verdict = 'High risk warning';
     likely_scenario = input.isThin ? 'Thin orderbook trap' : 'Whale manipulation suspected';
-    short_comment = 'Avoid FOMO entries';
+    short_comment = 'Wait for cleaner confirmation';
     adjustedScore = Math.min(100, adjustedScore + 5); // Slight upward adjustment for caution
   } else if (input.baseRiskScore >= 40) {
     verdict = 'Moderate opportunity';

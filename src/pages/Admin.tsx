@@ -22,6 +22,10 @@ const AdminLogin = () => {
   const navigate = useNavigate();
 
   const submit = async () => {
+    if (ADMIN_EMAIL && email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+      setError('Admin email not allowed');
+      return;
+    }
     setLoading(true);
     setError(null);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -156,7 +160,7 @@ const Admin = () => {
   const { session, loading } = useSession();
   if (loading) return null;
   if (!session) return <AdminLogin />;
-  if (!ADMIN_EMAIL || session.user.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return <Navigate to="/" replace />;
+  if (ADMIN_EMAIL && session.user.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return <Navigate to="/" replace />;
   return <AdminPanel />;
 };
 
