@@ -5,6 +5,52 @@
   "devCommand": "pnpm run dev",
   "installCommand": "pnpm install",
   "outputDirectory": "dist",
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "shepard-signals-furkan-cobans-projects.vercel.app"
+        }
+      ],
+      "destination": "https://shepardai.pro/$1",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "shepard-signals-clnzsrh8n-furkan-cobans-projects.vercel.app"
+        }
+      ],
+      "destination": "https://shepardai.pro/$1",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "shepard-signals-dsyytk1hr-furkan-cobans-projects.vercel.app"
+        }
+      ],
+      "destination": "https://shepardai.pro/$1",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.shepardai.pro"
+        }
+      ],
+      "destination": "https://shepardai.pro/$1",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",

@@ -15,7 +15,7 @@ User-agent: facebookexternalhit
 Allow: /
 
 # Sitemap location
-Sitemap: https://shepard-signals.vercel.app/sitemap.xml
+Sitemap: https://shepardai.pro/sitemap.xml
 Allow: /
 
 User-agent: *
