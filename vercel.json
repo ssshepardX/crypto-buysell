@@ -38,17 +38,6 @@
       ],
       "destination": "https://shepardai.pro/$1",
       "permanent": true
-    },
-    {
-      "source": "/(.*)",
-      "has": [
-        {
-          "type": "host",
-          "value": "www.shepardai.pro"
-        }
-      ],
-      "destination": "https://shepardai.pro/$1",
-      "permanent": true
     }
   ],
   "rewrites": [
