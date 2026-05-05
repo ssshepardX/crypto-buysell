@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   Activity,
   AlertTriangle,
@@ -60,6 +60,7 @@ const CoinAnalysis = () => {
   const [usage, setUsage] = useState<UserUsageDaily | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
   const { language } = useLanguage();
 
   useEffect(() => {
@@ -90,6 +91,7 @@ const CoinAnalysis = () => {
   const runAnalysis = async (force = false) => {
     setIsLoading(true);
     setError(null);
+    setLimitReached(false);
     try {
       const result = await analyzeCoin(symbol, timeframe, force, language);
       setAnalysis(result);
@@ -97,7 +99,8 @@ const CoinAnalysis = () => {
       setUsage(today);
     } catch (err) {
       if (err instanceof CoinAnalysisError && err.code === 'AI_LIMIT_REACHED') {
-        setError(`Daily analysis limit reached (${err.used}/${err.limit}).`);
+        setLimitReached(true);
+        setError(`Free daily limit reached (${err.used}/${err.limit}). Upgrade to continue.`);
       } else {
         setError(err instanceof Error ? err.message : 'Analiz calistirilamadi');
       }
@@ -182,7 +185,12 @@ const CoinAnalysis = () => {
 
               {error && (
                 <div className="rounded-md border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">
-                  {error}
+                  <div>{error}</div>
+                  {limitReached && (
+                    <Button asChild size="sm" className="mt-3 bg-cyan-500 text-white hover:bg-cyan-600">
+                      <Link to="/pricing">Upgrade plan</Link>
+                    </Button>
+                  )}
                 </div>
               )}
             </CardContent>
