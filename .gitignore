@@ -32,3 +32,6 @@ dist-ssr
 .vercel
 
 .fake
+
+# Local nested repo copy; the app builds from the repository root.
+crypto-buysell/

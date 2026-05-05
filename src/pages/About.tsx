@@ -1,42 +1,43 @@
-import Navbar from "@/components/Navbar";
+import AppShell from '@/components/AppShell';
+import Head from '@/components/Head';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+const sections = [
+  {
+    title: 'What Shepard AI does',
+    body: 'Shepard AI explains unusual crypto market movement. It checks price action, volume, liquidity, whale traces, and public catalyst signals to show why a coin may be moving.',
+  },
+  {
+    title: 'How analysis works',
+    body: 'The system calculates indicators and risk scores first. AI is used only to turn the result into a short, plain-language summary. This keeps the output consistent and reduces unnecessary model cost.',
+  },
+  {
+    title: 'What it is not',
+    body: 'Shepard AI does not provide buy or sell instructions. It is a market intelligence tool for understanding movement source, manipulation risk, and data confidence.',
+  },
+];
 
 const About = () => {
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      <main className="flex-grow container mx-auto px-4 py-12">
-        <div className="max-w-3xl mx-auto text-left space-y-8">
-          <div className="text-center">
-            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">
-              About Shepard Signals
-            </h1>
-            <p className="text-lg text-muted-foreground">
-              The Future of Automated Crypto Analysis
-            </p>
-          </div>
-
-          <div className="p-6 bg-secondary/50 rounded-lg border border-white/10">
-            <h2 className="text-2xl font-bold mb-3">Our Mission</h2>
-            <p className="text-muted-foreground leading-relaxed">
-              In the volatile and complex world of cryptocurrency, timely and accurate information is the key to success. Shepard Signals was founded on a simple principle: to empower traders of all levels by providing clear, data-driven, and actionable insights. We cut through the market noise, so you can focus on making strategic decisions.
-            </p>
-          </div>
-
-          <div className="p-6 bg-secondary/50 rounded-lg border border-white/10">
-            <h2 className="text-2xl font-bold mb-3">A Hybrid Intelligence Approach</h2>
-            <p className="text-muted-foreground leading-relaxed">
-              Our system represents the optimal fusion of proven technical analysis and state-of-the-art artificial intelligence. We don't rely on one or the other; we leverage the strengths of both. Our algorithms first use established technical indicators like HMA and RSI to identify potential high-probability trade setups. Then, our AI engine analyzes these signals in a broader market context to confirm their validity, assess risk, and generate realistic take-profit targets. This hybrid model ensures our signals are not just theoretical but practical and grounded in real market dynamics.
-            </p>
-          </div>
-          
-          <div className="text-center pt-4">
-            <p className="text-md font-semibold text-foreground">
-              Proudly created in Germany, with a commitment to precision and reliability.
-            </p>
-          </div>
-        </div>
-      </main>
-    </div>
+    <AppShell title="About Shepard AI" subtitle="Market movement intelligence, not trade signals.">
+      <Head
+        title="About - Shepard AI"
+        description="Learn how Shepard AI explains crypto market movement, whale traces, liquidity risk, and news or social catalysts."
+        path="/about"
+      />
+      <div className="mx-auto max-w-4xl space-y-4">
+        {sections.map((section) => (
+          <Card key={section.title} className="border-slate-800 bg-slate-900">
+            <CardHeader>
+              <CardTitle className="text-lg">{section.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="leading-relaxed text-slate-400">{section.body}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </AppShell>
   );
 };
 

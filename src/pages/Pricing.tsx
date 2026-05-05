@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useSession } from '@/contexts/SessionContext';
 import { Trans } from '@/contexts/LanguageContext';
 import { BillingInterval, createCheckout, PlanId } from '@/services/subscriptionService';
+import Head from '@/components/Head';
 
 const intervalLabels: Record<BillingInterval, string> = {
   monthly: 'Monthly',
@@ -109,6 +110,11 @@ const Pricing = () => {
         </div>
       }
     >
+      <Head
+        title="Pricing - Shepard AI"
+        description="Choose Shepard AI plan limits for crypto movement intelligence, whale checks, and market scanner access."
+        path="/pricing"
+      />
       {error && (
         <div className="rounded-md border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">
           {error}

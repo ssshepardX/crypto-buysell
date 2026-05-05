@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Activity } from 'lucide-react';
-import { Trans } from '@/contexts/LanguageContext';
+import { Trans, useLanguage } from '@/contexts/LanguageContext';
+import { formatCauseLabel } from '@/lib/labels';
 
 interface RealData {
   symbol: string;
@@ -15,6 +16,7 @@ interface RealData {
 }
 
 const ScanningCard: React.FC<{ realData: RealData }> = ({ realData }) => {
+  const { language } = useLanguage();
   const [progress, setProgress] = useState(0);
   const [showData, setShowData] = useState(false);
   const [loadingText, setLoadingText] = useState("Checking market data...");
@@ -85,7 +87,7 @@ const ScanningCard: React.FC<{ realData: RealData }> = ({ realData }) => {
       <div className="space-y-3 mb-4">
          <div className="flex justify-between text-sm">
             <span className="text-slate-400"><Trans text="Likely cause" /></span>
-            <span className="text-emerald-400 font-mono">{realData.likely_cause || 'balanced_market'}</span>
+            <span className="text-emerald-400 font-mono">{formatCauseLabel(realData.likely_cause, language)}</span>
          </div>
          <div className="flex justify-between text-sm">
             <span className="text-slate-400"><Trans text="Volume spike" /></span>
@@ -99,7 +101,7 @@ const ScanningCard: React.FC<{ realData: RealData }> = ({ realData }) => {
 
       <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
         <p className="text-xs text-slate-300 leading-relaxed">
-          <span className="text-cyan-500 font-bold">Supervisor: </span>
+          <span className="text-cyan-500 font-bold"><Trans text="Supervisor" />: </span>
           {realData.summary}
         </p>
       </div>

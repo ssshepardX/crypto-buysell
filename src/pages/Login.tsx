@@ -1,27 +1,34 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Brain } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/contexts/SessionContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import Head from '@/components/Head';
 
 type Mode = 'login' | 'signup';
 const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
 
 const Login = () => {
   const navigate = useNavigate();
-  const { session } = useSession();
+  const [searchParams] = useSearchParams();
+  const { session, loading: sessionLoading } = useSession();
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const nextPath = (() => {
+    const requested = searchParams.get('next') || '/dashboard';
+    return requested.startsWith('/') && !requested.startsWith('//') ? requested : '/dashboard';
+  })();
+
   useEffect(() => {
-    if (session) navigate('/dashboard');
-  }, [session, navigate]);
+    if (!sessionLoading && session) navigate(nextPath, { replace: true });
+  }, [session, sessionLoading, navigate, nextPath]);
 
   const submit = async () => {
     setLoading(true);
@@ -34,7 +41,7 @@ const Login = () => {
         setError(error.message);
         return;
       }
-      navigate('/dashboard');
+      navigate(nextPath, { replace: true });
       return;
     }
 
@@ -54,19 +61,30 @@ const Login = () => {
     setError(null);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${appUrl}/dashboard` },
+      options: { redirectTo: `${appUrl}${nextPath}` },
     });
     if (error) setError(error.message);
   };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
+      <Head
+        title="Log in - Shepard AI"
+        description="Access Shepard AI movement intelligence dashboard."
+        path="/login"
+      />
       <Card className="w-full max-w-md border-slate-800 bg-slate-900">
         <CardHeader className="text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-500/15 ring-1 ring-cyan-400/30">
             <Brain className="h-6 w-6 text-cyan-300" />
           </div>
           <CardTitle>{mode === 'login' ? 'Log in' : 'Sign up'}</CardTitle>
+          {sessionLoading && (
+            <p className="text-sm text-slate-400">Checking saved session...</p>
+          )}
+          {!sessionLoading && searchParams.get('next') && !session && (
+            <p className="text-sm text-slate-400">Sign in to continue.</p>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-2 gap-2 rounded-md border border-slate-800 bg-slate-950 p-1">
@@ -82,6 +100,9 @@ const Login = () => {
           <Button onClick={signInWithGoogle} variant="outline" className="w-full border-slate-700 bg-slate-950">
             Continue with Google
           </Button>
+          <p className="text-center text-xs text-slate-500">
+            Your session stays active on this device until you log out.
+          </p>
           {mode === 'signup' && (
             <p className="text-center text-xs text-slate-500">
               A verification code will be sent by email.

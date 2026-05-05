@@ -68,8 +68,6 @@ export interface AiSummary {
   whale_probability?: number;
   catalyst_summary_tr?: string;
   confidence?: number;
-  direction_bias?: 'up' | 'down' | 'neutral';
-  continuation_probability?: number;
   risk_level: 'Low' | 'Moderate' | 'High' | 'Critical';
   summary_tr: string;
   watch_points: string[];

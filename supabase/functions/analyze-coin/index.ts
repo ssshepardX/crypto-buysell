@@ -166,6 +166,14 @@ function normalizeLanguage(value: unknown): OutputLanguage {
   return SUPPORTED_LANGUAGES.includes(value as OutputLanguage) ? value as OutputLanguage : "tr";
 }
 
+function logAnalysisEvent(event: string, data: Record<string, unknown> = {}) {
+  console.log(JSON.stringify({
+    event,
+    at: new Date().toISOString(),
+    ...data,
+  }));
+}
+
 async function getAuthContext(req: Request): Promise<AuthContext> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
@@ -214,6 +222,12 @@ async function getTodayUsage(userId: string): Promise<{ ai_analysis_count: numbe
 async function assertCanGenerateAi(auth: AuthContext) {
   const usage = await getTodayUsage(auth.userId);
   if (usage.ai_analysis_count >= auth.entitlement.aiDailyLimit) {
+    logAnalysisEvent("ai_limit_reached", {
+      user_id: auth.userId,
+      plan: auth.plan,
+      used: usage.ai_analysis_count,
+      limit: auth.entitlement.aiDailyLimit,
+    });
     throw new ApiError(403, "AI_LIMIT_REACHED", "Daily analysis limit reached. Upgrade to run more checks.", {
       plan: auth.plan,
       used: usage.ai_analysis_count,
@@ -783,6 +797,11 @@ async function fetchSocialSummary(symbol: string) {
 }
 
 function fallbackAiSummary(cause: CauseSummary, risk: RiskSummary, language: OutputLanguage, reason = "missing_ai_api_key", detail = "") {
+  logAnalysisEvent("ai_summary_fallback", {
+    reason,
+    detail_length: detail.length,
+    likely_cause: cause.likely_cause,
+  });
   const riskLevel = risk.pump_dump_risk_score > 70 ? "High" : risk.pump_dump_risk_score > 45 ? "Moderate" : "Low";
   const reasonText = language === "tr"
     ? "Veriler hareketin kaynağına dair net bir baskın sinyal göstermiyor. Büyük işlem, likidite ve hacim skorları birlikte izlenmeli."
@@ -800,8 +819,6 @@ function fallbackAiSummary(cause: CauseSummary, risk: RiskSummary, language: Out
     summary_tr: reasonText,
     watch_points: cause.risk_labels.slice(0, 3),
     not_advice_notice: notice,
-    direction_bias: "neutral",
-    continuation_probability: cause.early_warning_score,
     risk_level: riskLevel,
     source: "deterministic_fallback",
     fallback_reason: reason,
@@ -859,6 +876,13 @@ async function getAiSummary(
   };
 
   const prompt = `Write a short and plain market movement source analysis in language code ${language}. Audience: a regular app user, not a professional trader. Use simple words. Do not mention model/provider/cache/fallback. Do not write price direction, buy/sell, entry/exit, or certainty. Decisions already come from deterministic scores; explain them only. Return JSON only.\n${JSON.stringify(compactPayload)}\nOutput schema: {"likely_cause":"organic_demand|whale_push|thin_liquidity_move|fomo_trap|fraud_pump_risk|news_social_catalyst|balanced_market","manipulation_risk":"Low|Moderate|High|Critical","whale_probability":0-100,"catalyst_summary_tr":"max 2 short sentences","confidence":0-100,"watch_points":["max 3 short items"],"not_advice_notice":"one short disclaimer in target language"}`;
+  logAnalysisEvent("ai_summary_prompt", {
+    symbol,
+    timeframe,
+    language,
+    prompt_chars: prompt.length,
+    payload_chars: JSON.stringify(compactPayload).length,
+  });
 
   const errors: string[] = [];
   for (const model of geminiApiKey ? GEMINI_MODELS : []) {
@@ -881,6 +905,13 @@ async function getAiSummary(
       }
       const data = await response.json();
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+      logAnalysisEvent("ai_summary_success", {
+        symbol,
+        timeframe,
+        provider: "gemini",
+        model,
+        output_chars: text.length,
+      });
       return {
         ...fallbackAiSummary(cause, risk, language),
         ...parseJsonObject(text),
@@ -928,6 +959,13 @@ async function getAiSummary(
       }
       const data = await response.json();
       const text = data.choices?.[0]?.message?.content || "{}";
+      logAnalysisEvent("ai_summary_success", {
+        symbol,
+        timeframe,
+        provider: "openrouter",
+        model: data.model || OPENROUTER_MODEL,
+        output_chars: text.length,
+      });
       return {
         ...fallbackAiSummary(cause, risk, language),
         ...parseJsonObject(text),
@@ -980,6 +1018,7 @@ async function analyzeCoin(symbolInput: string, timeframeInput: string, auth: Au
   if (!force) {
     const cached = await readCached(symbol, timeframe);
     if (cached?.cause_json && Object.keys(cached.cause_json).length > 0 && cached.ai_summary_json?.language === language) {
+      logAnalysisEvent("analysis_cache_hit", { symbol, timeframe, language });
       return { ...cached, cache_hit: true, usage_counted: false };
     }
   }
@@ -1016,6 +1055,9 @@ async function analyzeCoin(symbolInput: string, timeframeInput: string, auth: Au
     },
   };
   const recentAiSummary = await readRecentAiSummary(symbol, timeframe, language);
+  if (recentAiSummary) {
+    logAnalysisEvent("ai_summary_cache_hit", { symbol, timeframe, language });
+  }
   if (!recentAiSummary) {
     await assertCanGenerateAi(auth);
   }

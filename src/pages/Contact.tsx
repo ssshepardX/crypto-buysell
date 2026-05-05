@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { submitContactMessage } from '@/services/adminService';
 import { Trans } from '@/contexts/LanguageContext';
+import Head from '@/components/Head';
 
 const Contact = () => {
   const [form, setForm] = useState({ name: '', email: '', satisfaction: 'neutral', subject: '', message: '' });
@@ -14,12 +15,24 @@ const Contact = () => {
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
+    const clean = {
+      ...form,
+      name: form.name.trim(),
+      email: form.email.trim().toLowerCase(),
+      subject: form.subject.trim(),
+      message: form.message.trim(),
+    };
+    if (!clean.name || !clean.email || clean.subject.length < 3 || clean.message.length < 10) {
+      setStatus('Please enter name, email, subject, and a message of at least 10 characters.');
+      return;
+    }
+
     setLoading(true);
     setStatus(null);
     try {
       await submitContactMessage({
-        ...form,
-        satisfaction: form.satisfaction as 'happy' | 'neutral' | 'unhappy',
+        ...clean,
+        satisfaction: clean.satisfaction as 'happy' | 'neutral' | 'unhappy',
       });
       setForm({ name: '', email: '', satisfaction: 'neutral', subject: '', message: '' });
       setStatus('Message sent.');
@@ -32,6 +45,11 @@ const Contact = () => {
 
   return (
     <AppShell title="Contact" subtitle="Send feedback or support request.">
+      <Head
+        title="Contact - Shepard AI"
+        description="Contact Shepard AI support for account, billing, and product questions."
+        path="/contact"
+      />
       <Card className="mx-auto max-w-2xl border-slate-800 bg-slate-900">
         <CardHeader>
           <CardTitle><Trans text="Contact form" /></CardTitle>

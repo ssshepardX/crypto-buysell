@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import RealMarketChart from '@/components/RealMarketChart';
+import { formatCauseLabel, formatRiskLabel } from '@/lib/labels';
 import { getTop200CoinsByVolume, CoinData } from '@/services/binanceService';
 import {
   AnalysisTimeframe,
@@ -100,9 +101,9 @@ const CoinAnalysis = () => {
     } catch (err) {
       if (err instanceof CoinAnalysisError && err.code === 'AI_LIMIT_REACHED') {
         setLimitReached(true);
-        setError(`Free daily limit reached (${err.used}/${err.limit}). Upgrade to continue.`);
+        setError(`Daily limit reached (${err.used}/${err.limit}). Upgrade to continue.`);
       } else {
-        setError(err instanceof Error ? err.message : 'Analiz calistirilamadi');
+        setError(err instanceof Error ? err.message : 'Analysis could not be completed.');
       }
     } finally {
       setIsLoading(false);
@@ -209,7 +210,7 @@ const CoinAnalysis = () => {
                 <div className="flex flex-wrap gap-2">
                   {risk?.labels.map((label) => (
                     <Badge key={label} variant="outline" className="border-slate-700 text-slate-300">
-                      {label}
+                      {formatRiskLabel(label, language)}
                     </Badge>
                   ))}
                 </div>
@@ -230,7 +231,7 @@ const CoinAnalysis = () => {
               </CardTitle>
               {aiSummary && (
                 <Badge className="bg-slate-800 text-slate-200">
-                  <Trans text="Cause" />: {analysis?.cause_json?.likely_cause || aiSummary.likely_cause || 'balanced_market'}
+                  <Trans text="Cause" />: {formatCauseLabel(analysis?.cause_json?.likely_cause || aiSummary.likely_cause, language)}
                 </Badge>
               )}
             </CardHeader>
@@ -260,7 +261,7 @@ const CoinAnalysis = () => {
                   {entitlement.canViewAdvancedRisk ? (
                     <CardContent className="grid grid-cols-2 gap-3 text-sm">
                       <InfoLine label="Whale Risk" value={`${risk.whale_risk_score}/100`} />
-                      <InfoLine label="Buy Pressure" value={`${analysis.market_microstructure_json?.trades.buyPressurePct ?? 0}%`} />
+                      <InfoLine label="Taker buy pressure" value={`${analysis.market_microstructure_json?.trades.buyPressurePct ?? 0}%`} />
                       <InfoLine label="Large Trades" value={String(analysis.market_microstructure_json?.trades.largeTradeCount ?? 0)} />
                       <InfoLine label="Reversal Risk" value={`${risk.reversal_risk_score}/100`} />
                       <InfoLine label="Volume Confirm" value={`${risk.volume_confirmation_score}/100`} />
@@ -306,7 +307,7 @@ const CoinAnalysis = () => {
                 <CardContent className="space-y-3">
                   <div className="rounded-md border border-slate-800 bg-slate-950 p-4">
                     <div className="text-xs text-slate-500"><Trans text="Likely cause" /></div>
-                    <div className="mt-1 text-xl font-semibold text-slate-100">{analysis.cause_json?.likely_cause || aiSummary.likely_cause || 'balanced_market'}</div>
+                    <div className="mt-1 text-xl font-semibold text-slate-100">{formatCauseLabel(analysis.cause_json?.likely_cause || aiSummary.likely_cause, language)}</div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
                     <InfoLine label="Organic" value={`${analysis.cause_json?.movement_cause_score.organic ?? 0}/100`} />

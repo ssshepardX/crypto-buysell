@@ -1,22 +1,4 @@
 User-agent: *
 Allow: /
 
-# Allow search engine crawlers
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
-# Sitemap location
 Sitemap: https://shepardai.pro/sitemap.xml
-Allow: /
-
-User-agent: *
-Allow: /

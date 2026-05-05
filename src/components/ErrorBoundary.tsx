@@ -22,7 +22,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
+    console.error('Application error:', error, errorInfo);
   }
 
   public render() {
@@ -31,9 +31,9 @@ class ErrorBoundary extends Component<Props, State> {
         <div className="min-h-screen flex items-center justify-center p-4">
           <Alert variant="destructive" className="max-w-lg">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Something went wrong!</AlertTitle>
+            <AlertTitle>Something went wrong</AlertTitle>
             <AlertDescription className="mt-2">
-              {this.state.error?.message || 'An unexpected error occurred'}
+              The page could not be loaded. Please refresh and try again.
             </AlertDescription>
             <Button
               variant="outline"
@@ -43,7 +43,7 @@ class ErrorBoundary extends Component<Props, State> {
                 window.location.reload();
               }}
             >
-              Try again
+              Refresh page
             </Button>
           </Alert>
         </div>

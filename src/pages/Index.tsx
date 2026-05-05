@@ -19,7 +19,7 @@ const Index = () => {
         </div>
       </div>
       <Head
-        title="AI Market Analyst - Crypto AI Advisor Platform"
+        title="Shepard AI - Crypto Movement Intelligence"
         description="Crypto market movement intelligence platform. Understand sudden price moves, whale traces, fraud risk, and social/news catalysts."
       />
       <Navbar />

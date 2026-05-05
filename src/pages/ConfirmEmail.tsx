@@ -63,32 +63,32 @@ const ConfirmEmail = () => {
         return (
           <div className="flex flex-col items-center text-center">
             <Loader2 className="mb-4 h-12 w-12 animate-spin" />
-            <CardTitle>E-posta Adresiniz Doğrulanıyor...</CardTitle>
-            <p className="mt-2 text-muted-foreground">Lütfen bekleyin, bu işlem birkaç saniye sürebilir.</p>
+            <CardTitle>Verifying email</CardTitle>
+            <p className="mt-2 text-muted-foreground">Please wait a few seconds.</p>
           </div>
         );
       case 'success':
         return (
           <div className="flex flex-col items-center text-center">
             <CheckCircle className="mb-4 h-12 w-12 text-green-500" />
-            <CardTitle>Doğrulama Başarılı!</CardTitle>
-            <p className="mt-2 text-muted-foreground">Hesabınız başarıyla aktive edildi. Kontrol paneline yönlendiriliyorsunuz...</p>
+            <CardTitle>Email verified</CardTitle>
+            <p className="mt-2 text-muted-foreground">Your account is ready. Redirecting to dashboard...</p>
           </div>
         );
       case 'error':
         return (
           <div className="flex flex-col items-center text-center">
             <XCircle className="mb-4 h-12 w-12 text-red-500" />
-            <CardTitle>Doğrulama Başarısız</CardTitle>
+            <CardTitle>Verification failed</CardTitle>
             <p className="mt-2 text-muted-foreground">
-              Doğrulama bağlantısı geçersiz veya süresi dolmuş olabilir. Lütfen tekrar giriş yapmayı deneyin veya yeni bir doğrulama e-postası isteyin.
+              The verification link may be invalid or expired. Sign in again or request a new code.
             </p>
             <div className="mt-6 flex gap-3">
               <Button asChild>
-                <Link to="/login">Girişe Dön</Link>
+                <Link to="/login">Back to login</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to="/">Ana Sayfa</Link>
+                <Link to="/">Home</Link>
               </Button>
             </div>
           </div>

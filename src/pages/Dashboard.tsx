@@ -74,9 +74,9 @@ const DashboardPage = () => {
       setRecentAnalyses(analyses);
       const today = await getTodayUsage();
       setUsage(today);
-      setMessage('Market scanner tamamlandi.');
+      setMessage('Market scan complete.');
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Market scanner calistirilamadi.');
+      setMessage(err instanceof Error ? err.message : 'Market scan could not be completed.');
     } finally {
       setIsLoading(false);
     }
@@ -152,7 +152,7 @@ const DashboardPage = () => {
           <Button asChild className="bg-cyan-500 hover:bg-cyan-600">
             <Link to="/analysis">
               <BarChart3 className="mr-2 h-4 w-4" />
-              Ac
+              <Trans text="Open" />
             </Link>
           </Button>
         </CardHeader>
@@ -198,7 +198,7 @@ const DashboardPage = () => {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-100"><Trans text="Scanner results" /></h2>
-          <Badge className="bg-slate-800 text-slate-300">{alerts.length} sonuc</Badge>
+          <Badge className="bg-slate-800 text-slate-300">{alerts.length} <Trans text="results" /></Badge>
         </div>
         {alerts.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
