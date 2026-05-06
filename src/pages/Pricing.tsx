@@ -10,6 +10,7 @@ import { useSession } from '@/contexts/SessionContext';
 import { Trans } from '@/contexts/LanguageContext';
 import { BillingInterval, createCheckout, PlanId } from '@/services/subscriptionService';
 import Head from '@/components/Head';
+import { openExternalUrl } from '@/lib/mobile';
 
 const intervalLabels: Record<BillingInterval, string> = {
   monthly: 'Monthly',
@@ -78,7 +79,7 @@ const Pricing = () => {
     setLoadingPlan(plan);
     try {
       const checkout = await createCheckout(plan, interval);
-      window.location.href = checkout.checkout_url;
+      await openExternalUrl(checkout.checkout_url);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Checkout olusturulamadi.');
     } finally {

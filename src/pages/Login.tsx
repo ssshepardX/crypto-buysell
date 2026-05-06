@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import Head from '@/components/Head';
+import { isNativeApp, mobileRedirectUrl, openExternalUrl } from '@/lib/mobile';
 
 type Mode = 'login' | 'signup';
 const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
@@ -68,11 +69,15 @@ const Login = () => {
 
   const signInWithGoogle = async () => {
     setError(null);
-    const { error } = await supabase.auth.signInWithOAuth({
+    const redirectTo = isNativeApp()
+      ? `${mobileRedirectUrl('/auth/callback')}?next=${encodeURIComponent(nextPath)}`
+      : `${appUrl}${nextPath}`;
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${appUrl}${nextPath}` },
+      options: { redirectTo, skipBrowserRedirect: isNativeApp() },
     });
     if (error) setError(error.message);
+    if (isNativeApp() && data.url) await openExternalUrl(data.url);
   };
 
   return (

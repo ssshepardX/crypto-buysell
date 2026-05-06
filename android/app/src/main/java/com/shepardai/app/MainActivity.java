@@ -1,4 +1,4 @@
-package com.example.buysellcrypto;
+package com.shepardai.app;
 
 import com.getcapacitor.BridgeActivity;
 

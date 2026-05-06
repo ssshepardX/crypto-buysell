@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.example.buysellcrypto',
-  appName: 'buysellcrypto',
+  appId: 'com.shepardai.app',
+  appName: 'Shepard AI',
   webDir: 'dist'
 };
 
