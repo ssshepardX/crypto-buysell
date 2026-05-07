@@ -63,6 +63,8 @@ const CoinAnalysis = () => {
   const [coinSentiment, setCoinSentiment] = useState<SentimentResult | null>(null);
   const [sentimentLoading, setSentimentLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingStep, setLoadingStep] = useState('Preparing analysis');
   const [error, setError] = useState<string | null>(null);
   const [limitReached, setLimitReached] = useState(false);
   const { language } = useLanguage();
@@ -94,14 +96,32 @@ const CoinAnalysis = () => {
 
   const runAnalysis = async (force = false) => {
     setIsLoading(true);
+    setLoadingProgress(0);
+    setLoadingStep('Preparing analysis');
     setError(null);
     setLimitReached(false);
+    const startedAt = Date.now();
+    const interval = window.setInterval(() => {
+      setLoadingProgress((current) => {
+        const next = Math.min(92, current + (current < 35 ? 7 : current < 70 ? 5 : 3));
+        if (next >= 78) setLoadingStep('Building result');
+        else if (next >= 55) setLoadingStep('Checking market data');
+        else if (next >= 30) setLoadingStep('Checking recent cache');
+        return next;
+      });
+    }, 160);
     try {
       const result = await analyzeCoin(symbol, timeframe, force, language);
+      const waitMs = Math.max(0, 1200 - (Date.now() - startedAt));
+      if (waitMs) await new Promise((resolve) => window.setTimeout(resolve, waitMs));
+      setLoadingStep(result.cache_hit ? 'Loading saved result' : result.ai_cache_hit ? 'Loading saved summary' : 'Finalizing new result');
+      setLoadingProgress(100);
+      await new Promise((resolve) => window.setTimeout(resolve, 280));
       setAnalysis(result);
       const today = await getTodayUsage();
       setUsage(today);
     } catch (err) {
+      setLoadingProgress(100);
       if (err instanceof CoinAnalysisError && err.code === 'AI_LIMIT_REACHED') {
         setLimitReached(true);
         setError(`Daily limit reached (${err.used}/${err.limit}). Upgrade to continue.`);
@@ -109,6 +129,7 @@ const CoinAnalysis = () => {
         setError(err instanceof Error ? err.message : 'Analysis could not be completed.');
       }
     } finally {
+      window.clearInterval(interval);
       setIsLoading(false);
     }
   };
@@ -208,6 +229,27 @@ const CoinAnalysis = () => {
                   <Trans text="Refresh" />
                 </Button>
               </div>
+
+              {isLoading && (
+                <div className="rounded-md border border-emerald-500/20 bg-emerald-500/10 p-4">
+                  <div className="flex items-center gap-4">
+                    <div
+                      className="grid h-16 w-16 place-items-center rounded-full text-sm font-semibold text-emerald-200"
+                      style={{
+                        background: `conic-gradient(rgb(16 185 129) ${loadingProgress * 3.6}deg, rgb(15 23 42) 0deg)`,
+                      }}
+                    >
+                      <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-950">
+                        {loadingProgress}%
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-emerald-200">{loadingStep}</div>
+                      <div className="mt-1 text-xs text-slate-400">Recent results are reused for 15 minutes.</div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {error && (
                 <div className="rounded-md border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">

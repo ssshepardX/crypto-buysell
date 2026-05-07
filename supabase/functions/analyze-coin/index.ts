@@ -286,12 +286,8 @@ function normalizeSymbol(symbol: string): string {
   return cleaned.endsWith("USDT") ? cleaned : `${cleaned}USDT`;
 }
 
-function ttlMinutes(timeframe: Timeframe): number {
-  if (timeframe === "5m") return 5;
-  if (timeframe === "15m") return 10;
-  if (timeframe === "30m") return 15;
-  if (timeframe === "1h") return 30;
-  return 60;
+function ttlMinutes(_timeframe: Timeframe): number {
+  return 15;
 }
 
 async function fetchKlines(symbol: string, timeframe: Timeframe, limit = 180): Promise<Kline[]> {
