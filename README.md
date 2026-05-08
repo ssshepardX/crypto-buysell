@@ -1,22 +1,92 @@
-# Shepard Signals
+# Shepard AI
 
-Shepard Signals is an AI-powered crypto and stock trading signal application. Written mostly with dyad app, some corrections made by me :)
-It analyzes real-time market data, identifies the strongest opportunities, and presents them through a clean and simple interface. It's still at the development process some functions may not work.
+Crypto movement intelligence app.
 
-🚀 Features
+Shepard AI does not sell buy/sell signals. It explains why a crypto asset may be moving by combining market data, technical signals, order book pressure, large trade traces, RSS news signals, and short AI summaries.
 
-AI-generated buy/sell signals ( Binance API Kline Data-> Technical Analysis-> sending Gemini for comment,advice-> UI )
+Production domain: https://shepardai.pro
 
-Tracking of top trend 100-150 cryptocurrencies and stocks
+## Current Product Scope
 
-Dynamic success rate calculation
+- Market movement cause analysis
+- Whale, liquidity, manipulation, and fraud/pump risk scoring
+- TradingView-style chart using live Binance market data
+- 15-minute shared analysis cache per symbol, timeframe, and language
+- RSS-only sentiment MVP for free operation
+- AI summary in selected language
+- Supabase Auth with email OTP and Google login
+- Creem subscription integration
+- Admin panel
+- Backtest and market snapshot tooling
+- Capacitor Android/iOS shell
 
-Scam detection and secure signal filtering ( still planning on it. )
+## Tech Stack
 
-🧠 Tech Stack
+- React 18
+- Vite
+- TypeScript
+- Tailwind CSS
+- shadcn/Radix UI primitives
+- Supabase Auth, Postgres, RLS, Edge Functions, Cron
+- Binance public market data
+- Lightweight Charts
+- Capacitor 7
+- Vercel
 
-Python / TypeScript / Supabase / Gemini AI
+## Documentation
 
-📈 Mission
+- [Architecture](docs/ARCHITECTURE.md)
+- [Local Setup](docs/SETUP.md)
+- [Environment Variables](docs/ENVIRONMENT.md)
+- [Supabase](docs/SUPABASE.md)
+- [Edge Functions API](docs/API.md)
+- [Sentiment Intelligence](docs/SENTIMENT.md)
+- [Payments](docs/PAYMENTS.md)
+- [Admin Panel](docs/ADMIN.md)
+- [Backtesting](docs/BACKTESTING.md)
+- [Mobile](docs/MOBILE.md)
+- [Deployment](docs/DEPLOYMENT.md)
+- [Security](docs/SECURITY.md)
+- [Operations](docs/OPERATIONS.md)
 
-To provide users with accurate, transparent, and intelligent trading signals.
+## Local Development
+
+```bash
+pnpm install
+pnpm run dev
+```
+
+Build:
+
+```bash
+pnpm run build
+```
+
+Lint:
+
+```bash
+pnpm lint
+```
+
+## Important Positioning
+
+Use this wording consistently:
+
+- Market movement intelligence
+- Movement cause analysis
+- Manipulation risk
+- Whale trace
+- Liquidity risk
+- News/social catalyst
+
+Avoid this wording:
+
+- Guaranteed prediction
+- Buy/sell signal
+- Entry/exit advice
+- Profit promise
+- Financial advice
+
+## License
+
+Private project.
