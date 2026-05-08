@@ -66,6 +66,7 @@ export interface AiSummary {
   likely_cause?: string;
   manipulation_risk?: 'Low' | 'Moderate' | 'High' | 'Critical';
   whale_probability?: number;
+  catalyst_summary?: string;
   catalyst_summary_tr?: string;
   confidence?: number;
   risk_level: 'Low' | 'Moderate' | 'High' | 'Critical';

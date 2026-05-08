@@ -11,12 +11,15 @@ type LanguageContextValue = {
   language: AppLanguage;
   languages: typeof languages;
   setLanguage: (language: AppLanguage) => void;
-  translate: (text: string) => string;
+  translate: (text: string, values?: TranslateValues, fallback?: string) => string;
+  t: (text: string, values?: TranslateValues, fallback?: string) => string;
 };
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 const storageKey = 'shepard-language';
+type TranslateValues = Record<string, string | number | null | undefined>;
+type TranslationCatalog = Record<string, string>;
 
 const dictionary: Partial<Record<AppLanguage, Record<string, string>>> = {
   tr: {
@@ -187,8 +190,28 @@ function detectLanguage(): AppLanguage {
   return languages.some((item) => item.code === browser) ? browser : 'tr';
 }
 
+function applyValues(text: string, values?: TranslateValues) {
+  if (!values) return text;
+  return text.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_, key: string) => {
+    const value = values[key];
+    return value === null || value === undefined ? '' : String(value);
+  });
+}
+
+async function loadRuntimeCatalog(language: AppLanguage): Promise<TranslationCatalog> {
+  try {
+    const response = await fetch(`/locales/${language}.json`, { cache: 'no-store' });
+    if (!response.ok) return {};
+    const data = await response.json();
+    return data && typeof data === 'object' && !Array.isArray(data) ? data as TranslationCatalog : {};
+  } catch {
+    return {};
+  }
+}
+
 const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const [language, setLanguageState] = useState<AppLanguage>(() => detectLanguage());
+  const [runtimeCatalogs, setRuntimeCatalogs] = useState<Partial<Record<AppLanguage, TranslationCatalog>>>({});
 
   const setLanguage = useCallback((next: AppLanguage) => {
     setLanguageState(next);
@@ -200,14 +223,31 @@ const LanguageProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     document.documentElement.lang = language;
     document.documentElement.dir = 'ltr';
+    let cancelled = false;
+    loadRuntimeCatalog(language).then((catalog) => {
+      if (cancelled) return;
+      setRuntimeCatalogs((current) => ({ ...current, [language]: catalog }));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [language]);
+
+  const translate = useCallback((text: string, values?: TranslateValues, fallback?: string) => {
+    const runtime = runtimeCatalogs[language]?.[text];
+    const staticText = dictionary[language]?.[text];
+    const englishRuntime = runtimeCatalogs.en?.[text];
+    const englishStatic = dictionary.en?.[text];
+    return applyValues(runtime || staticText || englishRuntime || englishStatic || fallback || text, values);
+  }, [language, runtimeCatalogs]);
 
   const value = useMemo<LanguageContextValue>(() => ({
     language,
     languages,
     setLanguage,
-    translate: (text: string) => dictionary[language]?.[text] || text,
-  }), [language, setLanguage]);
+    translate,
+    t: translate,
+  }), [language, setLanguage, translate]);
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 };
@@ -218,9 +258,9 @@ export function useLanguage() {
   return context;
 }
 
-export function Trans({ text }: { text: string }) {
+export function Trans({ text, values, fallback }: { text: string; values?: TranslateValues; fallback?: string }) {
   const { translate } = useLanguage();
-  return <>{translate(text)}</>;
+  return <>{translate(text, values, fallback)}</>;
 }
 
 export default LanguageProvider;

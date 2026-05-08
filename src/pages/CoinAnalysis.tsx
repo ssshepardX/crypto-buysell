@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Activity,
@@ -52,6 +52,9 @@ const formatUsd = (value: number) => (
   })
 );
 
+const summaryText = (summary: CoinAnalysisData['ai_summary_json']) =>
+  summary.catalyst_summary || summary.catalyst_summary_tr || summary.summary_tr;
+
 const CoinAnalysis = () => {
   const { symbol: routeSymbol } = useParams();
   const [symbol, setSymbol] = useState((routeSymbol || 'BTCUSDT').toUpperCase());
@@ -94,7 +97,7 @@ const CoinAnalysis = () => {
     };
   }, [routeSymbol]);
 
-  const runAnalysis = async (force = false) => {
+  const runAnalysis = useCallback(async (force = false) => {
     setIsLoading(true);
     setLoadingProgress(0);
     setLoadingStep('Preparing analysis');
@@ -132,7 +135,7 @@ const CoinAnalysis = () => {
       window.clearInterval(interval);
       setIsLoading(false);
     }
-  };
+  }, [language, symbol, timeframe]);
 
   const aiSummary = analysis?.ai_summary_json;
   const risk = analysis?.risk_json;
@@ -160,6 +163,11 @@ const CoinAnalysis = () => {
       cancelled = true;
     };
   }, [analysis, entitlement.canViewAdvancedRisk]);
+
+  useEffect(() => {
+    if (!analysis || analysis.ai_summary_json.language === language || isLoading) return;
+    runAnalysis(false);
+  }, [analysis, isLoading, language, runAnalysis]);
 
   return (
     <AppShell
@@ -244,8 +252,8 @@ const CoinAnalysis = () => {
                       </div>
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-emerald-200">{loadingStep}</div>
-                      <div className="mt-1 text-xs text-slate-400">Recent results are reused for 15 minutes.</div>
+                      <div className="text-sm font-medium text-emerald-200"><Trans text={loadingStep} /></div>
+                      <div className="mt-1 text-xs text-slate-400"><Trans text="Recent results are reused for 15 minutes." /></div>
                     </div>
                   </div>
                 </div>
@@ -444,7 +452,7 @@ const CoinAnalysis = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-lg leading-relaxed text-slate-100">{aiSummary.catalyst_summary_tr || aiSummary.summary_tr}</p>
+                  <p className="text-lg leading-relaxed text-slate-100">{summaryText(aiSummary)}</p>
                   <div className="flex flex-wrap gap-2">
                     <Badge className={cn('bg-slate-800', scoreColor(aiSummary.whale_probability ?? analysis.cause_json?.movement_cause_score.whale ?? 0))}>
                       <Trans text="Whale trace" />: {aiSummary.whale_probability ?? analysis.cause_json?.movement_cause_score.whale ?? 0}%

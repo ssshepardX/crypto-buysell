@@ -895,6 +895,7 @@ function fallbackAiSummary(cause: CauseSummary, risk: RiskSummary, language: Out
     likely_cause: cause.likely_cause,
     manipulation_risk: riskLevel,
     whale_probability: cause.movement_cause_score.whale,
+    catalyst_summary: reasonText,
     catalyst_summary_tr: reasonText,
     confidence: cause.confidence_score,
     summary_tr: reasonText,
@@ -956,7 +957,8 @@ async function getAiSummary(
     news,
   };
 
-  const prompt = `Write a short and plain market movement source analysis in language code ${language}. Audience: a regular app user, not a professional trader. Use simple words. Do not mention model/provider/cache/fallback. Do not write price direction, buy/sell, entry/exit, or certainty. Decisions already come from deterministic scores; explain them only. Return JSON only.\n${JSON.stringify(compactPayload)}\nOutput schema: {"likely_cause":"organic_demand|whale_push|thin_liquidity_move|fomo_trap|fraud_pump_risk|news_social_catalyst|balanced_market","manipulation_risk":"Low|Moderate|High|Critical","whale_probability":0-100,"catalyst_summary_tr":"max 2 short sentences","confidence":0-100,"watch_points":["max 3 short items"],"not_advice_notice":"one short disclaimer in target language"}`;
+  const targetLanguage = language === "tr" ? "Turkish" : "English";
+  const prompt = `Write a short and plain market movement source analysis. Output language must be ${targetLanguage} (${language}). Audience: a regular app user, not a professional trader. Use simple words. Do not mention model/provider/cache/fallback. Do not write price direction, buy/sell, entry/exit, or certainty. Decisions already come from deterministic scores; explain them only. Return JSON only. Every human-readable field must be in ${targetLanguage}.\n${JSON.stringify(compactPayload)}\nOutput schema: {"likely_cause":"organic_demand|whale_push|thin_liquidity_move|fomo_trap|fraud_pump_risk|news_social_catalyst|balanced_market","manipulation_risk":"Low|Moderate|High|Critical","whale_probability":0-100,"catalyst_summary":"max 2 short sentences","confidence":0-100,"watch_points":["max 3 short items"],"not_advice_notice":"one short disclaimer in target language"}`;
   logAnalysisEvent("ai_summary_prompt", {
     symbol,
     timeframe,

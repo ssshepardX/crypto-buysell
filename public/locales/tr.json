@@ -1,0 +1,10 @@
+{
+  "Preparing analysis": "Analiz hazırlanıyor",
+  "Checking recent cache": "Son kayıt kontrol ediliyor",
+  "Checking market data": "Piyasa verisi kontrol ediliyor",
+  "Building result": "Sonuç hazırlanıyor",
+  "Loading saved result": "Kayıtlı sonuç yükleniyor",
+  "Loading saved summary": "Kayıtlı özet yükleniyor",
+  "Finalizing new result": "Yeni sonuç tamamlanıyor",
+  "Recent results are reused for 15 minutes.": "Son sonuçlar 15 dakika tekrar kullanılır."
+}
