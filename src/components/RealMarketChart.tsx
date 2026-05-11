@@ -45,6 +45,22 @@ const RealMarketChart = ({ symbol, timeframe, analysis }: RealMarketChartProps) 
         borderColor: '#1e293b',
         timeVisible: true,
         secondsVisible: false,
+        barSpacing: 8,
+        minBarSpacing: 4,
+        rightOffset: 8,
+        fixLeftEdge: true,
+        fixRightEdge: false,
+      },
+      handleScale: {
+        axisPressedMouseMove: false,
+        pinch: true,
+        mouseWheel: false,
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
       },
       crosshair: {
         mode: 1,
@@ -168,7 +184,11 @@ const RealMarketChart = ({ symbol, timeframe, analysis }: RealMarketChartProps) 
       }
 
       chart.timeScale().fitContent();
-      chart.timeScale().scrollToPosition(4, false);
+      chart.timeScale().applyOptions({
+        barSpacing: 8,
+        minBarSpacing: 4,
+        rightOffset: 8,
+      });
       setStatus('ready');
     };
 
