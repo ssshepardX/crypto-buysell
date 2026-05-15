@@ -31,8 +31,12 @@ const DashboardPage = () => {
   const [sentimentLocked, setSentimentLocked] = useState(false);
   const [sentimentError, setSentimentError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [sentimentLoading, setSentimentLoading] = useState(false);
+  const [scannerLoading, setScannerLoading] = useState(false);
   const [planLoading, setPlanLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  const [lastSentimentAt, setLastSentimentAt] = useState<string | null>(null);
+  const [lastScanAt, setLastScanAt] = useState<string | null>(null);
 
   const entitlement = useMemo(
     () => PLAN_ENTITLEMENTS[subscription?.plan || 'free'],
@@ -63,10 +67,12 @@ const DashboardPage = () => {
       setSentimentTrends([]);
       return;
     }
+    setSentimentLoading(true);
     try {
       const data = await getMarketSentiment(12);
       setSentimentTrends(data.trends);
       setSentimentSummary(data.summary);
+      setLastSentimentAt(data.created_at || new Date().toISOString());
       setSentimentLocked(false);
     } catch (err) {
       if (err instanceof SentimentError && err.code === 'SENTIMENT_REQUIRES_PRO') {
@@ -77,6 +83,8 @@ const DashboardPage = () => {
       setSentimentLocked(false);
       setSentimentTrends([]);
       setSentimentError(err instanceof Error ? err.message : 'Trend intelligence could not be loaded.');
+    } finally {
+      setSentimentLoading(false);
     }
   }, []);
 
@@ -107,12 +115,13 @@ const DashboardPage = () => {
 
   const runMarketScan = async () => {
     setMessage(null);
-    setIsLoading(true);
+    setScannerLoading(true);
     try {
       const analyses = await scanMarket();
       setRecentAnalyses(analyses);
       const today = await getTodayUsage();
       setUsage(today);
+      setLastScanAt(new Date().toISOString());
       setMessage(analyses.length ? 'Market scan complete.' : 'Market scan complete. No high-signal movement found right now.');
     } catch (err) {
       if (err instanceof CoinAnalysisError && err.code === 'SCANNER_REQUIRES_TRADER') {
@@ -121,7 +130,7 @@ const DashboardPage = () => {
         setMessage(err instanceof Error ? err.message : 'Market scan could not be completed.');
       }
     } finally {
-      setIsLoading(false);
+      setScannerLoading(false);
     }
   };
 
@@ -176,11 +185,32 @@ const DashboardPage = () => {
           <div>
             <CardTitle className="text-base"><Trans text="Trend Intelligence" /></CardTitle>
             <p className="mt-1 text-sm text-slate-400"><Trans text="Most mentioned coins and the likely news or social reason." /></p>
+            <p className="mt-2 text-xs text-slate-500">
+              {lastSentimentAt ? `Updated ${new Date(lastSentimentAt).toLocaleTimeString('tr-TR')}` : 'RSS market sweep'}
+            </p>
           </div>
-          {sentimentLocked && <Button asChild className="bg-cyan-500 hover:bg-cyan-600"><Link to="/pricing">Upgrade</Link></Button>}
+          <div className="flex items-center gap-2">
+            <Badge className={cn('bg-slate-800', sentimentLocked ? 'text-amber-200' : 'text-cyan-200')}>
+              {sentimentLocked ? 'Pro+' : 'Live RSS'}
+            </Badge>
+            {sentimentLocked ? (
+              <Button asChild className="bg-cyan-500 hover:bg-cyan-600"><Link to="/pricing">Upgrade</Link></Button>
+            ) : (
+              <Button onClick={() => loadSentiment(subscription?.plan || 'free')} disabled={sentimentLoading} variant="outline" className="border-slate-700 bg-slate-950">
+                <RefreshCw className={cn('mr-2 h-4 w-4', sentimentLoading && 'animate-spin')} />
+                Refresh
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
-          {sentimentLocked ? (
+          {sentimentLoading && !sentimentTrends.length ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="h-28 animate-pulse rounded-md border border-slate-800 bg-slate-950" />
+              ))}
+            </div>
+          ) : sentimentLocked ? (
             <div className="rounded-md border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200">
               <Trans text="Trend sentiment is available on Pro and Trader plans." />
             </div>
@@ -205,12 +235,23 @@ const DashboardPage = () => {
               ))}
             </div>
           ) : (
-            <div className="rounded-md border border-slate-800 bg-slate-950 p-4 text-sm text-slate-400">
+            <div className="rounded-md border border-slate-800 bg-slate-950 p-5">
+              <div className="text-sm font-medium text-slate-200">No strong catalyst detected</div>
+              <p className="mt-1 text-sm text-slate-400">
+                {sentimentError || 'RSS sources did not show a clear coin-specific trend in the last sweep.'}
+              </p>
+              <Button onClick={() => loadSentiment(subscription?.plan || 'free')} disabled={sentimentLoading} variant="outline" className="mt-4 border-slate-700 bg-slate-900">
+                <RefreshCw className={cn('mr-2 h-4 w-4', sentimentLoading && 'animate-spin')} />
+                Run trend sweep
+              </Button>
+              <span className="ml-3 text-xs text-slate-500">Free-source RSS mode</span>
+              <span className="hidden">
               {sentimentError ? (
                 <span>{sentimentError}</span>
               ) : (
                 <Trans text="No sentiment trend yet." />
               )}
+              </span>
             </div>
           )}
         </CardContent>
@@ -223,19 +264,45 @@ const DashboardPage = () => {
             <p className="mt-1 text-sm text-slate-400">
               <Trans text="Checks recent market moves and classifies the likely cause." />
             </p>
+            <p className="mt-2 text-xs text-slate-500">
+              {lastScanAt ? `Last scan ${new Date(lastScanAt).toLocaleTimeString('tr-TR')}` : entitlement.canRunScanner ? 'Manual scan available' : 'Trader feature'}
+            </p>
           </div>
-          <Button onClick={runMarketScan} disabled={isLoading || planLoading || !entitlement.canRunScanner} className="bg-cyan-500 hover:bg-cyan-600 disabled:cursor-not-allowed disabled:opacity-50">
-            <Zap className="mr-2 h-4 w-4" />
-            Scan Market
+          <Button onClick={runMarketScan} disabled={scannerLoading || planLoading || !entitlement.canRunScanner} className="bg-cyan-500 hover:bg-cyan-600 disabled:cursor-not-allowed disabled:opacity-50">
+            {scannerLoading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+            {scannerLoading ? 'Scanning' : 'Scan Market'}
           </Button>
         </CardHeader>
-        {!planLoading && !entitlement.canRunScanner && (
-          <CardContent>
+        <CardContent>
+          {!planLoading && !entitlement.canRunScanner ? (
             <div className="rounded-md border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-200">
               <Trans text="Manual scanning is available on the Trader plan. Cached results remain visible." />
             </div>
-          </CardContent>
-        )}
+          ) : scannerLoading ? (
+            <div className="grid gap-3 md:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="h-24 animate-pulse rounded-md border border-slate-800 bg-slate-950" />
+              ))}
+            </div>
+          ) : meaningfulAnalyses.length ? (
+            <div className="grid gap-3 md:grid-cols-3">
+              {meaningfulAnalyses.slice(0, 3).map((analysis) => (
+                <Link key={analysis.id} to={`/analysis/${analysis.symbol}`} className="rounded-md border border-slate-800 bg-slate-950 p-3 transition hover:border-cyan-500/40">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-100">{analysis.symbol.replace('USDT', '')}</span>
+                    <Badge className="bg-slate-800 text-cyan-200">{analysis.cause_json?.confidence_score || 0}/100</Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-400">{causeLabel(analysis.cause_json?.likely_cause)}</p>
+                  <p className="mt-1 text-xs text-slate-500">Risk {analysis.risk_json?.pump_dump_risk_score || 0}/100</p>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-md border border-slate-800 bg-slate-950 p-4 text-sm text-slate-400">
+              No recent movement checks yet. Run a scan or open Market Lab.
+            </div>
+          )}
+        </CardContent>
       </Card>
 
       <Card className="border-slate-800 bg-slate-900">
@@ -328,5 +395,18 @@ const SentimentBadge = ({ label, score }: { label: string; score: number }) => (
     {label} {score}/100
   </Badge>
 );
+
+const causeLabel = (cause?: string) => {
+  const labels: Record<string, string> = {
+    organic_demand: 'Organic demand',
+    whale_push: 'Whale push',
+    thin_liquidity_move: 'Thin liquidity move',
+    fomo_trap: 'FOMO trap',
+    fraud_pump_risk: 'Manipulation risk',
+    news_social_catalyst: 'News/social catalyst',
+    balanced_market: 'Balanced market',
+  };
+  return labels[cause || ''] || 'Movement classified';
+};
 
 export default DashboardPage;
