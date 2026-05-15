@@ -119,7 +119,10 @@ async function writeSnapshot(symbol: string, result: Record<string, unknown>, mo
       expires_at: expiresAt,
     };
   const { data, error } = await supabase.from("sentiment_snapshots").insert(row).select("*").single();
-  if (error) throw error;
+  if (error) {
+    console.error("sentiment cache write failed:", error.message);
+    return null;
+  }
   return data;
 }
 
@@ -128,7 +131,7 @@ async function updateSources(result: Record<string, unknown>) {
   const providers = result.source_json && typeof result.source_json === "object"
     ? (result.source_json as { providers?: Record<string, { status: string; error?: string }> }).providers || {}
     : {};
-  await Promise.all(Object.entries(providers).map(([provider, info]) =>
+  const writes = await Promise.allSettled(Object.entries(providers).map(([provider, info]) =>
     supabase.from("sentiment_sources").upsert({
       provider,
       status: info.status,
@@ -137,6 +140,8 @@ async function updateSources(result: Record<string, unknown>) {
       updated_at: new Date().toISOString(),
     }),
   ));
+  const failed = writes.filter((write) => write.status === "rejected").length;
+  if (failed) console.error("sentiment source status writes failed:", failed);
 }
 
 async function marketScan(limitInput: unknown) {
@@ -180,7 +185,7 @@ async function coinScan(symbolInput: unknown) {
   const result = await scanSymbolSentiment(symbol);
   await updateSources(result as unknown as Record<string, unknown>);
   const row = await writeSnapshot(symbol, result as unknown as Record<string, unknown>, "coin");
-  return { sentiment: result, cache_hit: false, created_at: row.created_at };
+  return { sentiment: result, cache_hit: false, created_at: row?.created_at || new Date().toISOString() };
 }
 
 serve(async (req) => {
