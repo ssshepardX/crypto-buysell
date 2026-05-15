@@ -161,7 +161,7 @@ export class CoinAnalysisError extends Error {
 }
 
 const ANALYSIS_SESSION_TTL_MS = 2 * 60 * 1000;
-const RECENT_SESSION_TTL_MS = 30 * 1000;
+const RECENT_SESSION_TTL_MS = 2 * 60 * 1000;
 
 function readSessionCache<T>(key: string): T | null {
   try {
@@ -220,28 +220,6 @@ export async function analyzeCoin(
   const analysis = data.analysis as CoinAnalysis;
   writeSessionCache(cacheKey, analysis, ANALYSIS_SESSION_TTL_MS);
   return analysis;
-}
-
-export async function scanMarket(): Promise<CoinAnalysis[]> {
-  const { data, error } = await supabase.functions.invoke('analyze-coin', {
-    method: 'POST',
-    body: { mode: 'scan-market' },
-  });
-
-  if (error) {
-    const context = 'context' in error ? error.context : null;
-    if (context instanceof Response) {
-      const details = await context.json().catch(() => null);
-      if (details?.error) throw new CoinAnalysisError(details.error, details);
-    }
-    throw new CoinAnalysisError(error.message || 'Market scan failed');
-  }
-
-  if (data?.error) {
-    throw new CoinAnalysisError(data.error, data);
-  }
-
-  return data.analyses as CoinAnalysis[];
 }
 
 export async function getRecentAnalyses(): Promise<CoinAnalysis[]> {

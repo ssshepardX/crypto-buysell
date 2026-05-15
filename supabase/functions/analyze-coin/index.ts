@@ -1100,6 +1100,26 @@ async function readSemanticAiSummary(
   return match?.ai_summary_json || null;
 }
 
+function anomalyStrength(risk: RiskSummary, cause?: CauseSummary) {
+  return clamp(
+    risk.pump_dump_risk_score * 0.28 +
+    risk.whale_risk_score * 0.22 +
+    risk.volume_confirmation_score * 0.2 +
+    risk.reversal_risk_score * 0.1 +
+    Number(cause?.early_warning_score || 0) * 0.1 +
+    Number(cause?.confidence_score || 0) * 0.1,
+  );
+}
+
+function isHighSignalAnalysis(risk: RiskSummary, cause?: CauseSummary) {
+  return anomalyStrength(risk, cause) >= 42 ||
+    risk.pump_dump_risk_score >= 45 ||
+    risk.whale_risk_score >= 48 ||
+    risk.volume_confirmation_score >= 52 ||
+    Number(cause?.early_warning_score || 0) >= 48 ||
+    (cause?.likely_cause === "news_social_catalyst" && Number(cause?.confidence_score || 0) >= 50);
+}
+
 async function shouldDeepScan(symbol: string) {
   const klines = await fetchKlines(symbol, "15m", 80);
   if (klines.length < 60) return false;
@@ -1236,13 +1256,7 @@ async function scanMarket(auth: AuthContext) {
       const result = await analyzeCoin(symbol, "15m", auth, false, "tr");
       const risk = result.risk_json as RiskSummary;
       const cause = result.cause_json as CauseSummary | undefined;
-      if (
-        risk.pump_dump_risk_score >= 35 ||
-        risk.volume_confirmation_score >= 45 ||
-        risk.whale_risk_score >= 40 ||
-        (cause?.early_warning_score || 0) >= 40 ||
-        (cause?.confidence_score || 0) >= 55
-      ) {
+      if (isHighSignalAnalysis(risk, cause)) {
         analyzed.push(result);
       }
       if (analyzed.length >= 12) break;
@@ -1253,18 +1267,39 @@ async function scanMarket(auth: AuthContext) {
   return analyzed;
 }
 
+async function readScannerFeed() {
+  const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("coin_analyses")
+    .select("*")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(80);
+  if (error) throw new Error(error.message);
+
+  const bestPerSymbol = new Map<string, Record<string, unknown>>();
+  for (const row of data || []) {
+    const risk = row.risk_json as RiskSummary | null;
+    const cause = row.cause_json as CauseSummary | null;
+    if (!risk || !cause || !isHighSignalAnalysis(risk, cause)) continue;
+    const nextScore = anomalyStrength(risk, cause);
+    const previous = bestPerSymbol.get(row.symbol);
+    const previousScore = previous ? anomalyStrength(previous.risk_json as RiskSummary, previous.cause_json as CauseSummary) : -1;
+    if (nextScore > previousScore) bestPerSymbol.set(row.symbol, row);
+  }
+
+  return Array.from(bestPerSymbol.values())
+    .sort((a, b) => anomalyStrength((b.risk_json as RiskSummary), (b.cause_json as CauseSummary)) - anomalyStrength((a.risk_json as RiskSummary), (a.cause_json as CauseSummary)))
+    .slice(0, 12);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     if (req.method === "GET") {
-      const { data, error } = await supabase
-        .from("coin_analyses")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(30);
-      if (error) throw new Error(error.message);
-      return new Response(JSON.stringify({ analyses: data || [] }), {
+      const analyses = await readScannerFeed();
+      return new Response(JSON.stringify({ analyses, cached_at: new Date().toISOString() }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

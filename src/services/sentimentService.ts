@@ -77,31 +77,6 @@ function writeSessionCache<T>(key: string, value: T) {
   }
 }
 
-async function invokeSentiment<T>(body: Record<string, unknown>): Promise<T> {
-  const cacheKey = `sentiment:${JSON.stringify(body)}`;
-  const cached = readSessionCache<T>(cacheKey);
-  if (cached) return cached;
-
-  const { data: sessionData } = await supabase.auth.getSession();
-  const accessToken = sessionData.session?.access_token;
-  const { data, error } = await supabase.functions.invoke('sentiment-scan', {
-    method: 'POST',
-    body,
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-  });
-  if (error) {
-    const context = 'context' in error ? error.context : null;
-    if (context instanceof Response) {
-      const details = await context.json().catch(() => null);
-      if (details?.error) throw new SentimentError(details.error, details);
-    }
-    throw new SentimentError(error.message || 'Sentiment scan failed');
-  }
-  if (data?.error) throw new SentimentError(data.error, data);
-  writeSessionCache(cacheKey, data as T);
-  return data as T;
-}
-
 export async function getMarketSentiment(limit = 3) {
   const cacheKey = `sentiment-cache:market:${limit}`;
   const cached = readSessionCache<{
@@ -146,17 +121,27 @@ export async function getMarketSentiment(limit = 3) {
   return result;
 }
 
-export async function refreshMarketSentiment(limit = 3) {
-  const data = await invokeSentiment<{
-    trends: SentimentResult[];
-    summary: { most_mentioned: string | null; news_mood: number; reddit_heat: number; asia_watch: number };
-    cache_hit: boolean;
-    created_at: string;
-  }>({ mode: 'market', limit });
-  sessionStorage.removeItem(`sentiment-cache:market:${limit}`);
-  return data;
-}
-
 export async function getCoinSentiment(symbol: string) {
-  return invokeSentiment<{ sentiment: SentimentResult; cache_hit: boolean; created_at: string }>({ mode: 'coin', symbol });
+  const cacheKey = `sentiment:${JSON.stringify({ mode: 'coin', symbol })}`;
+  const cached = readSessionCache<{ sentiment: SentimentResult; cache_hit: boolean; created_at: string }>(cacheKey);
+  if (cached) return cached;
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  const { data, error } = await supabase.functions.invoke('sentiment-scan', {
+    method: 'POST',
+    body: { mode: 'coin', symbol },
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+  });
+  if (error) {
+    const context = 'context' in error ? error.context : null;
+    if (context instanceof Response) {
+      const details = await context.json().catch(() => null);
+      if (details?.error) throw new SentimentError(details.error, details);
+    }
+    throw new SentimentError(error.message || 'Sentiment scan failed');
+  }
+  if (data?.error) throw new SentimentError(data.error, data);
+  writeSessionCache(cacheKey, data as { sentiment: SentimentResult; cache_hit: boolean; created_at: string });
+  return data as { sentiment: SentimentResult; cache_hit: boolean; created_at: string };
 }
