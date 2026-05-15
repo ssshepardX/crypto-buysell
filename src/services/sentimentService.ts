@@ -7,7 +7,16 @@ export interface SentimentResult {
   symbol: string;
   source_json: {
     providers: Record<string, { status: string; count: number; error?: string }>;
-    items: Array<{ provider: string; url?: string; domain?: string; score: number; catalyst_terms: string[] }>;
+    items: Array<{
+      provider: string;
+      title?: string;
+      summary?: string;
+      url?: string;
+      domain?: string;
+      score: number;
+      catalyst_terms: string[];
+      published_at?: string;
+    }>;
     top_catalyst_terms: string[];
   };
   score_json: {

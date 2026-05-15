@@ -153,7 +153,7 @@ async function marketScan(limitInput: unknown) {
   const trends = [];
   for (let i = 0; i < symbols.length; i++) {
     const result = await scanSymbolSentiment(symbols[i], i + 1);
-    trends.push(result);
+    if (result.score_json.source_count > 0) trends.push(result);
     await updateSources(result as unknown as Record<string, unknown>);
   }
   trends.sort((a, b) => (b.score_json.mention_score + b.score_json.source_confidence * 0.25) - (a.score_json.mention_score + a.score_json.source_confidence * 0.25));

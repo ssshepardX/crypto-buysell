@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
 const TIMEFRAMES = ["5m", "15m", "30m", "1h", "4h"] as const;
@@ -116,10 +116,11 @@ type Entitlement = {
 };
 
 type AuthContext = {
-  userId: string;
+  userId: string | null;
   email: string | null;
   plan: PlanId;
   entitlement: Entitlement;
+  cron?: boolean;
 };
 
 class ApiError extends Error {
@@ -189,6 +190,17 @@ function logAnalysisEvent(event: string, data: Record<string, unknown> = {}) {
 }
 
 async function getAuthContext(req: Request): Promise<AuthContext> {
+  const cronSecret = Deno.env.get("CRON_SECRET") || "";
+  if (cronSecret && req.headers.get("x-cron-secret") === cronSecret) {
+    return {
+      userId: null,
+      email: null,
+      plan: "trader",
+      entitlement: ENTITLEMENTS.trader,
+      cron: true,
+    };
+  }
+
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     throw new ApiError(401, "AUTH_REQUIRED", "Oturum gerekli.");
@@ -229,7 +241,8 @@ async function getAuthContext(req: Request): Promise<AuthContext> {
   };
 }
 
-async function getTodayUsage(userId: string): Promise<{ ai_analysis_count: number; scanner_run_count: number }> {
+async function getTodayUsage(userId: string | null): Promise<{ ai_analysis_count: number; scanner_run_count: number }> {
+  if (!userId) return { ai_analysis_count: 0, scanner_run_count: 0 };
   const { data } = await supabase
     .from("user_usage_daily")
     .select("ai_analysis_count, scanner_run_count")
@@ -244,6 +257,7 @@ async function getTodayUsage(userId: string): Promise<{ ai_analysis_count: numbe
 }
 
 async function assertCanGenerateAi(auth: AuthContext) {
+  if (!auth.userId) return;
   const usage = await getTodayUsage(auth.userId);
   if (usage.ai_analysis_count >= auth.entitlement.aiDailyLimit) {
     logAnalysisEvent("ai_limit_reached", {
@@ -260,7 +274,8 @@ async function assertCanGenerateAi(auth: AuthContext) {
   }
 }
 
-async function incrementUsage(userId: string, field: "ai_analysis_count" | "scanner_run_count") {
+async function incrementUsage(userId: string | null, field: "ai_analysis_count" | "scanner_run_count") {
+  if (!userId) return;
   const usage = await getTodayUsage(userId);
   const next = {
     user_id: userId,
@@ -1212,7 +1227,6 @@ async function scanMarket(auth: AuthContext) {
   await incrementUsage(auth.userId, "scanner_run_count");
   const symbols = await fetchTopSymbols(40);
   const analyzed = [];
-  const fallback = [];
   let forcedChecks = 0;
   for (const symbol of symbols) {
     try {
@@ -1222,7 +1236,6 @@ async function scanMarket(auth: AuthContext) {
       const result = await analyzeCoin(symbol, "15m", auth, false, "tr");
       const risk = result.risk_json as RiskSummary;
       const cause = result.cause_json as CauseSummary | undefined;
-      fallback.push(result);
       if (
         risk.pump_dump_risk_score >= 35 ||
         risk.volume_confirmation_score >= 45 ||
@@ -1237,7 +1250,7 @@ async function scanMarket(auth: AuthContext) {
       console.error(`scan failed for ${symbol}:`, error);
     }
   }
-  return analyzed.length ? analyzed : fallback.slice(0, 6);
+  return analyzed;
 }
 
 serve(async (req) => {

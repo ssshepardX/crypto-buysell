@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, Brain, Clock, Flame, RefreshCw, ShieldAlert, Zap } from 'lucide-react';
+import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, Brain, Clock, ExternalLink, Flame, RefreshCw, ShieldAlert, Zap } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import ScanningCard from '@/components/ScanningCard';
 import { CoinAnalysis, CoinAnalysisError, getRecentAnalyses, scanMarket } from '@/services/coinAnalysisService';
@@ -50,6 +50,7 @@ const DashboardPage = () => {
     ),
     [recentAnalyses]
   );
+  const latestAnalysisAt = meaningfulAnalyses[0]?.created_at || null;
 
   const loadMarketData = useCallback(async () => {
     try {
@@ -118,7 +119,8 @@ const DashboardPage = () => {
     setScannerLoading(true);
     try {
       const analyses = await scanMarket();
-      setRecentAnalyses(analyses);
+      if (analyses.length) setRecentAnalyses(analyses);
+      else await loadMarketData();
       const today = await getTodayUsage();
       setUsage(today);
       setLastScanAt(new Date().toISOString());
@@ -216,42 +218,46 @@ const DashboardPage = () => {
             </div>
           ) : sentimentTrends.length ? (
             <div className="grid gap-3 lg:grid-cols-2">
-              {sentimentTrends.slice(0, 8).map((item) => (
-                <Link key={item.symbol} to={`/analysis/${item.symbol}`} className="rounded-md border border-slate-800 bg-slate-950 p-3 transition hover:border-cyan-500/40">
+              {sentimentTrends.slice(0, 8).map((item) => {
+                const source = item.source_json.items.find((entry) => entry.url) || item.source_json.items[0];
+                return (
+                <div key={item.symbol} className="rounded-md border border-slate-800 bg-slate-950 p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="font-semibold text-slate-100">{item.symbol.replace('USDT', '')}</div>
+                    <Link to={`/analysis/${item.symbol}`} className="font-semibold text-slate-100 hover:text-cyan-300">{item.symbol.replace('USDT', '')}</Link>
                     <div className="flex items-center gap-2">
                       <TrendIcon direction={item.trend_json.trend_direction} />
                       <SentimentBadge label={item.score_json.sentiment_label} score={item.score_json.sentiment_score} />
                     </div>
                   </div>
-                  <p className="mt-2 line-clamp-2 text-sm text-slate-400">{item.trend_json.reason_short}</p>
+                  <p className="mt-2 line-clamp-1 text-sm font-medium text-slate-200">{source?.title || item.trend_json.reason_short}</p>
+                  <p className="mt-1 line-clamp-2 text-sm text-slate-400">{source?.summary || item.trend_json.reason_short}</p>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                    <Badge className="bg-slate-800 text-slate-300">Mention {item.score_json.mention_score}/100</Badge>
+                    <Badge className="bg-slate-800 text-slate-300">{source?.domain || 'RSS source'}</Badge>
                     <Badge className="bg-slate-800 text-slate-300">Sources {item.score_json.source_count}</Badge>
-                    <Badge className="bg-slate-800 text-slate-300">Asia {item.trend_json.asia_watch_score}/100</Badge>
+                    {source?.published_at && <Badge className="bg-slate-800 text-slate-300">{new Date(source.published_at).toLocaleDateString('tr-TR')}</Badge>}
                   </div>
-                </Link>
-              ))}
+                  <div className="mt-3 flex items-center gap-3 text-xs">
+                    {source?.url && (
+                      <a href={source.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200">
+                        Read source <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                    <Link to={`/analysis/${item.symbol}`} className="text-slate-400 hover:text-slate-200">Open analysis</Link>
+                  </div>
+                </div>
+              );})}
             </div>
           ) : (
             <div className="rounded-md border border-slate-800 bg-slate-950 p-5">
-              <div className="text-sm font-medium text-slate-200">No strong catalyst detected</div>
+              <div className="text-sm font-medium text-slate-200">No verified news catalyst in the latest sweep</div>
               <p className="mt-1 text-sm text-slate-400">
-                {sentimentError || 'RSS sources did not show a clear coin-specific trend in the last sweep.'}
+                {sentimentError || 'RSS sources did not return coin-specific news with a source link. No placeholder cards are shown.'}
               </p>
               <Button onClick={() => loadSentiment(subscription?.plan || 'free')} disabled={sentimentLoading} variant="outline" className="mt-4 border-slate-700 bg-slate-900">
                 <RefreshCw className={cn('mr-2 h-4 w-4', sentimentLoading && 'animate-spin')} />
                 Run trend sweep
               </Button>
-              <span className="ml-3 text-xs text-slate-500">Free-source RSS mode</span>
-              <span className="hidden">
-              {sentimentError ? (
-                <span>{sentimentError}</span>
-              ) : (
-                <Trans text="No sentiment trend yet." />
-              )}
-              </span>
+              <span className="ml-3 text-xs text-slate-500">Verified RSS only</span>
             </div>
           )}
         </CardContent>
@@ -265,7 +271,11 @@ const DashboardPage = () => {
               <Trans text="Checks recent market moves and classifies the likely cause." />
             </p>
             <p className="mt-2 text-xs text-slate-500">
-              {lastScanAt ? `Last scan ${new Date(lastScanAt).toLocaleTimeString('tr-TR')}` : entitlement.canRunScanner ? 'Manual scan available' : 'Trader feature'}
+              {lastScanAt
+                ? `Last scan ${new Date(lastScanAt).toLocaleTimeString('tr-TR')}`
+                : latestAnalysisAt
+                  ? `Cached ${new Date(latestAnalysisAt).toLocaleTimeString('tr-TR')}`
+                  : entitlement.canRunScanner ? 'Manual scan available' : 'Trader feature'}
             </p>
           </div>
           <Button onClick={runMarketScan} disabled={scannerLoading || planLoading || !entitlement.canRunScanner} className="bg-cyan-500 hover:bg-cyan-600 disabled:cursor-not-allowed disabled:opacity-50">

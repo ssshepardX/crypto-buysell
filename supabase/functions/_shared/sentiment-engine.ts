@@ -5,12 +5,14 @@ export type TrendDirection = "up" | "down" | "flat";
 
 export type SentimentItem = {
   provider: "news" | "reddit" | "asia_watch" | "cryptopanic" | "coingecko" | "x";
+  title: string;
+  summary: string;
   title_hash: string;
   url?: string;
   domain?: string;
   score: number;
   catalyst_terms: string[];
-  created_hint?: string;
+  published_at?: string;
 };
 
 export type SentimentResult = {
@@ -118,12 +120,14 @@ async function item(provider: SentimentItem["provider"], title: string, snippet 
   const text = `${title} ${snippet}`;
   return {
     provider,
+    title: title.slice(0, 180),
+    summary: snippet.slice(0, 260),
     title_hash: await hashText(`${provider}:${title}:${url}`),
     url: url || undefined,
     domain: url ? domainFromUrl(url) : undefined,
     score: round(sentimentScore(text), 0),
     catalyst_terms: catalystTerms(text),
-    created_hint,
+    published_at: created_hint || undefined,
   };
 }
 
