@@ -29,7 +29,9 @@ const DashboardPage = () => {
   const [sentimentTrends, setSentimentTrends] = useState<SentimentResult[]>([]);
   const [sentimentSummary, setSentimentSummary] = useState<{ most_mentioned: string | null; news_mood: number; reddit_heat: number; asia_watch: number } | null>(null);
   const [sentimentLocked, setSentimentLocked] = useState(false);
+  const [sentimentError, setSentimentError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [planLoading, setPlanLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
 
   const entitlement = useMemo(
@@ -55,22 +57,32 @@ const DashboardPage = () => {
   }, []);
 
   const loadSentiment = useCallback(async (plan: string) => {
+    setSentimentError(null);
     if (plan === 'free') {
       setSentimentLocked(true);
+      setSentimentTrends([]);
       return;
     }
     try {
-      const data = await getMarketSentiment(3);
+      const data = await getMarketSentiment(12);
       setSentimentTrends(data.trends);
       setSentimentSummary(data.summary);
       setSentimentLocked(false);
     } catch (err) {
-      if (err instanceof SentimentError && err.code === 'SENTIMENT_REQUIRES_PRO') setSentimentLocked(true);
+      if (err instanceof SentimentError && err.code === 'SENTIMENT_REQUIRES_PRO') {
+        setSentimentLocked(true);
+        setSentimentTrends([]);
+        return;
+      }
+      setSentimentLocked(false);
+      setSentimentTrends([]);
+      setSentimentError(err instanceof Error ? err.message : 'Trend intelligence could not be loaded.');
     }
   }, []);
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
+    setPlanLoading(true);
     try {
       const [sub, today] = await Promise.all([getCurrentSubscription(), getTodayUsage()]);
       setSubscription(sub);
@@ -79,6 +91,7 @@ const DashboardPage = () => {
       await loadSentiment(sub.plan);
     } finally {
       setIsLoading(false);
+      setPlanLoading(false);
     }
   }, [loadMarketData, loadSentiment]);
 
@@ -144,9 +157,9 @@ const DashboardPage = () => {
       )}
 
       <div className="grid gap-4 md:grid-cols-4">
-        <MetricCard icon={ShieldAlert} label="Plan" value={subscription?.plan.toUpperCase() || 'FREE'} />
+        <MetricCard icon={ShieldAlert} label="Plan" value={planLoading ? 'Checking' : subscription?.plan.toUpperCase() || 'FREE'} />
         <MetricCard icon={Brain} label="Daily checks" value={`${usage?.ai_analysis_count || 0}/${entitlement.aiDailyLimit}`} />
-        <MetricCard icon={Activity} label="Scanner" value={entitlement.canRunScanner ? 'Enabled' : `${entitlement.scannerDelayMinutes} min delay`} />
+        <MetricCard icon={Activity} label="Scanner" value={planLoading ? 'Checking' : entitlement.canRunScanner ? 'Enabled' : `${entitlement.scannerDelayMinutes} min delay`} />
         <MetricCard icon={Clock} label="Renewal" value={subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString('tr-TR') : '-'} />
       </div>
 
@@ -192,7 +205,11 @@ const DashboardPage = () => {
             </div>
           ) : (
             <div className="rounded-md border border-slate-800 bg-slate-950 p-4 text-sm text-slate-400">
-              <Trans text="No sentiment trend yet." />
+              {sentimentError ? (
+                <span>{sentimentError}</span>
+              ) : (
+                <Trans text="No sentiment trend yet." />
+              )}
             </div>
           )}
         </CardContent>
@@ -206,12 +223,12 @@ const DashboardPage = () => {
               <Trans text="Checks recent market moves and classifies the likely cause." />
             </p>
           </div>
-          <Button onClick={runMarketScan} disabled={isLoading || !entitlement.canRunScanner} className="bg-cyan-500 hover:bg-cyan-600">
+          <Button onClick={runMarketScan} disabled={isLoading || planLoading || !entitlement.canRunScanner} className="bg-cyan-500 hover:bg-cyan-600 disabled:cursor-not-allowed disabled:opacity-50">
             <Zap className="mr-2 h-4 w-4" />
             Scan Market
           </Button>
         </CardHeader>
-        {!entitlement.canRunScanner && (
+        {!planLoading && !entitlement.canRunScanner && (
           <CardContent>
             <div className="rounded-md border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-200">
               <Trans text="Manual scanning is available on the Trader plan. Cached results remain visible." />

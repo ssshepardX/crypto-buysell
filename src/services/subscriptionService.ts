@@ -29,6 +29,12 @@ export interface UserUsageDaily {
   usage_date: string;
 }
 
+const PLAN_PRIORITY: Record<PlanId, number> = {
+  free: 0,
+  pro: 1,
+  trader: 2,
+};
+
 export const PLAN_ENTITLEMENTS: Record<PlanId, PlanEntitlements> = {
   free: {
     aiDailyLimit: 3,
@@ -76,13 +82,15 @@ export async function getCurrentSubscription(): Promise<UserSubscription> {
     .select('*')
     .eq('user_id', user.id)
     .eq('active', true)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .in('status', ['active', 'trialing'])
+    .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message);
 
-  return (data || {
+  const bestSubscription = (data || [])
+    .sort((a, b) => (PLAN_PRIORITY[b.plan as PlanId] ?? 0) - (PLAN_PRIORITY[a.plan as PlanId] ?? 0))[0];
+
+  return (bestSubscription || {
     id: 'free',
     user_id: user.id,
     plan: 'free',

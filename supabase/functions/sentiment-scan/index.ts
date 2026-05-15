@@ -10,6 +10,7 @@ const corsHeaders = {
 };
 
 type PlanId = "free" | "pro" | "trader";
+const PLAN_PRIORITY: Record<PlanId, number> = { free: 0, pro: 1, trader: 2 };
 
 class ApiError extends Error {
   status: number;
@@ -23,8 +24,18 @@ class ApiError extends Error {
   }
 }
 
-function ttlMinutes(mode: string) {
-  return mode === "market" ? 360 : 720;
+function ttlMinutes(mode: string, hasSignal = true) {
+  if (mode === "market") return hasSignal ? 60 : 15;
+  return hasSignal ? 720 : 60;
+}
+
+function hasSentimentSignal(result: Record<string, unknown>) {
+  const trends = Array.isArray(result.trends) ? result.trends as Array<{ score_json?: { source_count?: number; mention_score?: number } }> : [];
+  if (trends.length) {
+    return trends.some((trend) => Number(trend.score_json?.source_count || 0) > 0 || Number(trend.score_json?.mention_score || 0) > 0);
+  }
+  const score = result.score_json as { source_count?: number; mention_score?: number } | undefined;
+  return Number(score?.source_count || 0) > 0 || Number(score?.mention_score || 0) > 0;
 }
 
 function isAdminEmail(email?: string | null) {
@@ -46,16 +57,17 @@ async function authContext(req: Request) {
   if (error || !data.user) throw new ApiError(401, "AUTH_INVALID", "Oturum dogrulanamadi.");
   const email = data.user.email || null;
   if (isAdminEmail(email)) return { userId: data.user.id, email, plan: "trader" as PlanId, cron: false };
-  const { data: subscription } = await supabase
+  const { data: subscriptions } = await supabase
     .from("user_subscriptions")
     .select("plan")
     .eq("user_id", data.user.id)
     .eq("active", true)
     .in("status", ["active", "trialing"])
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return { userId: data.user.id, email, plan: normalizePlan(subscription?.plan), cron: false };
+    .order("created_at", { ascending: false });
+  const plan = (subscriptions || [])
+    .map((row) => normalizePlan(row.plan))
+    .sort((a, b) => PLAN_PRIORITY[b] - PLAN_PRIORITY[a])[0] || "free";
+  return { userId: data.user.id, email, plan, cron: false };
 }
 
 function assertAllowed(plan: PlanId) {
@@ -90,7 +102,7 @@ async function readCached(symbol: string, mode: "market" | "coin") {
 
 async function writeSnapshot(symbol: string, result: Record<string, unknown>, mode: "market" | "coin") {
   const supabase = serviceClient();
-  const expiresAt = new Date(Date.now() + ttlMinutes(mode) * 60 * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + ttlMinutes(mode, hasSentimentSignal(result)) * 60 * 1000).toISOString();
   const row = mode === "market"
     ? {
       symbol: "MARKET",
@@ -128,7 +140,7 @@ async function updateSources(result: Record<string, unknown>) {
 }
 
 async function marketScan(limitInput: unknown) {
-  const limit = Math.min(Math.max(Number(limitInput || 3), 1), 3);
+  const limit = Math.min(Math.max(Number(limitInput || 12), 3), 20);
   const cached = await readCached("MARKET", "market");
   if (cached) return { trends: cached.trend_json?.trends || [], summary: cached.score_json || {}, cache_hit: true, created_at: cached.created_at };
 

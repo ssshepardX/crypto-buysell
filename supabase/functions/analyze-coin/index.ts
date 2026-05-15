@@ -149,6 +149,7 @@ const ENTITLEMENTS: Record<PlanId, Entitlement> = {
   pro: { aiDailyLimit: 50, canRunScanner: false },
   trader: { aiDailyLimit: 250, canRunScanner: true },
 };
+const PLAN_PRIORITY: Record<PlanId, number> = { free: 0, pro: 1, trader: 2 };
 
 function getGeminiApiKey(): string {
   return Deno.env.get("GEMINI_API_KEY") ||
@@ -209,17 +210,17 @@ async function getAuthContext(req: Request): Promise<AuthContext> {
     };
   }
 
-  const { data: subscription } = await supabase
+  const { data: subscriptions } = await supabase
     .from("user_subscriptions")
     .select("plan")
     .eq("user_id", data.user.id)
     .eq("active", true)
     .in("status", ["active", "trialing"])
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order("created_at", { ascending: false });
 
-  const plan = normalizePlan(subscription?.plan);
+  const plan = (subscriptions || [])
+    .map((row) => normalizePlan(row.plan))
+    .sort((a, b) => PLAN_PRIORITY[b] - PLAN_PRIORITY[a])[0] || "free";
   return {
     userId: data.user.id,
     email,
@@ -1091,11 +1092,11 @@ async function shouldDeepScan(symbol: string) {
   const latest = klines.at(-1);
   const previous = klines.at(-2);
   const movePct = latest && previous?.close ? Math.abs((latest.close - previous.close) / previous.close * 100) : 0;
-  return movePct >= 0.7 ||
-    indicators.volumeZScore >= 2 ||
+  return movePct >= 0.35 ||
+    indicators.volumeZScore >= 1.2 ||
     indicators.rangeBreakout ||
-    indicators.candleExpansion >= 1.8 ||
-    Math.abs(indicators.vwapDistancePct) >= 1.2;
+    indicators.candleExpansion >= 1.35 ||
+    Math.abs(indicators.vwapDistancePct) >= 0.7;
 }
 
 async function analyzeCoin(symbolInput: string, timeframeInput: string, auth: AuthContext, force = false, language: OutputLanguage = "tr") {
@@ -1211,18 +1212,23 @@ async function scanMarket(auth: AuthContext) {
   await incrementUsage(auth.userId, "scanner_run_count");
   const symbols = await fetchTopSymbols(40);
   const analyzed = [];
+  const fallback = [];
+  let forcedChecks = 0;
   for (const symbol of symbols) {
     try {
-      if (!await shouldDeepScan(symbol)) continue;
+      const deepScan = await shouldDeepScan(symbol);
+      if (!deepScan && forcedChecks >= 8) continue;
+      if (!deepScan) forcedChecks += 1;
       const result = await analyzeCoin(symbol, "15m", auth, false, "tr");
       const risk = result.risk_json as RiskSummary;
       const cause = result.cause_json as CauseSummary | undefined;
+      fallback.push(result);
       if (
-        risk.pump_dump_risk_score >= 45 ||
-        risk.volume_confirmation_score >= 65 ||
-        risk.whale_risk_score >= 55 ||
-        (cause?.early_warning_score || 0) >= 55 ||
-        (cause?.confidence_score || 0) >= 70
+        risk.pump_dump_risk_score >= 35 ||
+        risk.volume_confirmation_score >= 45 ||
+        risk.whale_risk_score >= 40 ||
+        (cause?.early_warning_score || 0) >= 40 ||
+        (cause?.confidence_score || 0) >= 55
       ) {
         analyzed.push(result);
       }
@@ -1231,7 +1237,7 @@ async function scanMarket(auth: AuthContext) {
       console.error(`scan failed for ${symbol}:`, error);
     }
   }
-  return analyzed;
+  return analyzed.length ? analyzed : fallback.slice(0, 6);
 }
 
 serve(async (req) => {
