@@ -1,19 +1,4 @@
 create schema if not exists private;
-create extension if not exists vault with schema vault;
-
-create or replace function private.cron_secret_value()
-returns text
-language sql
-security definer
-set search_path = private, vault, public
-as $$
-  select decrypted_secret
-  from vault.decrypted_secrets
-  where name = 'CRON_SECRET'
-  limit 1
-$$;
-
-revoke all on function private.cron_secret_value() from public;
 
 create table if not exists public.automation_runs (
   id uuid primary key default gen_random_uuid(),
@@ -67,7 +52,7 @@ select cron.schedule(
       'Content-Type', 'application/json',
       'apikey', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3ZG51eHB6c21kYmVmZmhkc295Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NjQzNTEsImV4cCI6MjA5MzA0MDM1MX0.1lhsZsyvSKRK40CDmpXrp5EOOiMTCu235LOIQ5-_ReM',
       'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3ZG51eHB6c21kYmVmZmhkc295Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NjQzNTEsImV4cCI6MjA5MzA0MDM1MX0.1lhsZsyvSKRK40CDmpXrp5EOOiMTCu235LOIQ5-_ReM',
-      'x-cron-secret', private.cron_secret_value()
+      'x-cron-secret', current_setting('app.cron_secret', true)
     ),
     body := jsonb_build_object('mode', 'scan-market')
   );
@@ -84,7 +69,7 @@ select cron.schedule(
       'Content-Type', 'application/json',
       'apikey', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3ZG51eHB6c21kYmVmZmhkc295Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NjQzNTEsImV4cCI6MjA5MzA0MDM1MX0.1lhsZsyvSKRK40CDmpXrp5EOOiMTCu235LOIQ5-_ReM',
       'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3ZG51eHB6c21kYmVmZmhkc295Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NjQzNTEsImV4cCI6MjA5MzA0MDM1MX0.1lhsZsyvSKRK40CDmpXrp5EOOiMTCu235LOIQ5-_ReM',
-      'x-cron-secret', private.cron_secret_value()
+      'x-cron-secret', current_setting('app.cron_secret', true)
     ),
     body := jsonb_build_object('mode', 'market', 'limit', 12)
   );
@@ -101,7 +86,7 @@ select cron.schedule(
       'Content-Type', 'application/json',
       'apikey', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3ZG51eHB6c21kYmVmZmhkc295Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NjQzNTEsImV4cCI6MjA5MzA0MDM1MX0.1lhsZsyvSKRK40CDmpXrp5EOOiMTCu235LOIQ5-_ReM',
       'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3ZG51eHB6c21kYmVmZmhkc295Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NjQzNTEsImV4cCI6MjA5MzA0MDM1MX0.1lhsZsyvSKRK40CDmpXrp5EOOiMTCu235LOIQ5-_ReM',
-      'x-cron-secret', private.cron_secret_value()
+      'x-cron-secret', current_setting('app.cron_secret', true)
     ),
     body := '{}'::jsonb,
     timeout_milliseconds := 30000

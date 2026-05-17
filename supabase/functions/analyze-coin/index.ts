@@ -1249,7 +1249,6 @@ async function analyzeCoin(symbolInput: string, timeframeInput: string, auth: Au
     indicator_json: indicators,
     risk_json: risk,
     social_json: social,
-    continuation_json: continuation,
     ai_summary_json: aiSummary,
     expires_at: expiresAt,
   };
