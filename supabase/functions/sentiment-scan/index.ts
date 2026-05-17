@@ -146,7 +146,7 @@ async function updateSources(result: Record<string, unknown>) {
 }
 
 async function marketScan(limitInput: unknown) {
-  const runId = await startAutomationRun("sentiment-scan-cache-15m", {
+  const runId = await startAutomationRun("sentiment-scan-cache-30m", {
     requested_limit: Number(limitInput || 12),
   });
   const limit = Math.min(Math.max(Number(limitInput || 12), 3), 20);

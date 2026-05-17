@@ -43,7 +43,7 @@ export type MarketOverviewPayload = {
   created_at: string | null;
 };
 
-const OVERVIEW_TTL_MS = 60 * 1000;
+const OVERVIEW_TTL_MS = 15 * 60 * 1000;
 
 function readCache<T>(key: string): T | null {
   try {

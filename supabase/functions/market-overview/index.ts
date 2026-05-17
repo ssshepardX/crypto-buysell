@@ -32,7 +32,7 @@ function json(data: unknown, status = 200) {
 }
 
 function ttlMinutes(panel: OverviewPanelType) {
-  return panel === "gainers" || panel === "losers" ? 5 : 15;
+  return panel === "trend_news" ? 30 : 15;
 }
 
 function hasValidCronSecret(req: Request) {
@@ -68,7 +68,16 @@ async function readLatestRun(jobName: string) {
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) return null;
+  if (error) {
+    return {
+      status: "failed",
+      started_at: null,
+      finished_at: null,
+      error_summary: error.message,
+      items_count: 0,
+      meta_json: {},
+    };
+  }
   return data;
 }
 
@@ -258,25 +267,18 @@ async function buildOverview() {
     readPanel("scanner"),
     readPanel("gainers"),
     readPanel("losers"),
-    readLatestRun("sentiment-scan-cache-15m"),
+    readLatestRun("sentiment-scan-cache-30m"),
     readLatestRun("market-scanner-cache-15m"),
-    readLatestRun("market-overview-cache-5m"),
+    readLatestRun("market-overview-cache-15m"),
   ]);
-
-  const trendFallback = await buildTrendPanel();
-  const scannerFallbackItems = await buildScannerPanel();
-  const moversFallback = await buildGainerLoserPanels();
 
   const trendNews = normalizePanel(
     trendPanel.data?.payload_json as Record<string, unknown> | undefined,
     trendRun as Record<string, unknown> | null,
     {
-      items: trendFallback.items,
-      created_at: trendFallback.created_at,
-      expires_at: trendFallback.expires_at,
-      cache_source: trendPanel.data ? "db" : "live-fallback",
-      run_status: trendRun?.status as RunStatus || (trendFallback.items.length ? "success" : "success_empty"),
-      error_summary: trendPanel.error?.message || trendFallback.error_summary,
+      cache_source: trendPanel.data ? "db" : "none",
+      run_status: trendRun?.status as RunStatus || "not_run",
+      error_summary: trendPanel.error?.message || null,
     },
   ) as PanelMeta & { most_mentioned?: string | null };
 
@@ -284,10 +286,8 @@ async function buildOverview() {
     scannerPanel.data?.payload_json as Record<string, unknown> | undefined,
     scannerRun as Record<string, unknown> | null,
     {
-      items: scannerFallbackItems,
-      created_at: scannerFallbackItems[0]?.created_at || null,
-      cache_source: scannerPanel.data ? "db" : "live-fallback",
-      run_status: scannerRun?.status as RunStatus || (scannerFallbackItems.length ? "success" : "success_empty"),
+      cache_source: scannerPanel.data ? "db" : "none",
+      run_status: scannerRun?.status as RunStatus || "not_run",
       error_summary: scannerPanel.error?.message || null,
     },
   );
@@ -296,9 +296,8 @@ async function buildOverview() {
     gainersPanel.data?.payload_json as Record<string, unknown> | undefined,
     overviewRun as Record<string, unknown> | null,
     {
-      items: moversFallback.gainers,
-      cache_source: gainersPanel.data ? "db" : "live-fallback",
-      run_status: moversFallback.gainers.length ? "success" : "success_empty",
+      cache_source: gainersPanel.data ? "db" : "none",
+      run_status: overviewRun?.status as RunStatus || "not_run",
       error_summary: gainersPanel.error?.message || null,
     },
   );
@@ -307,9 +306,8 @@ async function buildOverview() {
     losersPanel.data?.payload_json as Record<string, unknown> | undefined,
     overviewRun as Record<string, unknown> | null,
     {
-      items: moversFallback.losers,
-      cache_source: losersPanel.data ? "db" : "live-fallback",
-      run_status: moversFallback.losers.length ? "success" : "success_empty",
+      cache_source: losersPanel.data ? "db" : "none",
+      run_status: overviewRun?.status as RunStatus || "not_run",
       error_summary: losersPanel.error?.message || null,
     },
   );
@@ -317,7 +315,7 @@ async function buildOverview() {
   return {
     trend_news: {
       ...trendNews,
-      most_mentioned: (trendPanel.data?.payload_json as Record<string, unknown> | undefined)?.most_mentioned || trendFallback.most_mentioned || null,
+      most_mentioned: (trendPanel.data?.payload_json as Record<string, unknown> | undefined)?.most_mentioned || null,
     },
     scanner,
     gainers,
@@ -327,7 +325,7 @@ async function buildOverview() {
 }
 
 async function refreshOverview() {
-  const runId = await startAutomationRun("market-overview-cache-5m");
+  const runId = await startAutomationRun("market-overview-cache-15m");
   try {
     const [trend_news, scannerItems, movers] = await Promise.all([
       buildTrendPanel(),
@@ -405,4 +403,3 @@ serve(async (req) => {
     return json({ error: message }, status);
   }
 });
-

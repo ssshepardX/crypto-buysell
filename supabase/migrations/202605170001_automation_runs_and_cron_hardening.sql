@@ -37,8 +37,14 @@ begin
   if exists (select 1 from cron.job where jobname = 'sentiment-scan-cache-15m') then
     perform cron.unschedule('sentiment-scan-cache-15m');
   end if;
+  if exists (select 1 from cron.job where jobname = 'sentiment-scan-cache-30m') then
+    perform cron.unschedule('sentiment-scan-cache-30m');
+  end if;
   if exists (select 1 from cron.job where jobname = 'market-overview-cache-5m') then
     perform cron.unschedule('market-overview-cache-5m');
+  end if;
+  if exists (select 1 from cron.job where jobname = 'market-overview-cache-15m') then
+    perform cron.unschedule('market-overview-cache-15m');
   end if;
 end $$;
 
@@ -60,8 +66,8 @@ select cron.schedule(
 );
 
 select cron.schedule(
-  'sentiment-scan-cache-15m',
-  '*/15 * * * *',
+  'sentiment-scan-cache-30m',
+  '*/30 * * * *',
   $$
   select net.http_post(
     url := 'https://wwdnuxpzsmdbeffhdsoy.supabase.co/functions/v1/sentiment-scan',
@@ -77,8 +83,8 @@ select cron.schedule(
 );
 
 select cron.schedule(
-  'market-overview-cache-5m',
-  '*/5 * * * *',
+  'market-overview-cache-15m',
+  '*/15 * * * *',
   $$
   select net.http_post(
     url := 'https://wwdnuxpzsmdbeffhdsoy.supabase.co/functions/v1/market-overview',

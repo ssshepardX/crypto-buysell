@@ -101,7 +101,7 @@ const DashboardPage = () => {
     const interval = window.setInterval(() => {
       loadMarketData();
       if (subscription?.plan && subscription.plan !== 'free') loadOverview(subscription.plan);
-    }, 60000);
+    }, 15 * 60 * 1000);
     return () => window.clearInterval(interval);
   }, [loadDashboard, loadMarketData, loadOverview, subscription?.plan]);
 
