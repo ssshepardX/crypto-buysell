@@ -63,10 +63,10 @@ export type BacktestResult = {
     id: string;
     created_at: string;
     config_json: Record<string, unknown>;
-    metrics_json: Record<string, number>;
+    metrics_json: Record<string, unknown>;
   };
   events: BacktestEvent[];
-  metrics: Record<string, number>;
+  metrics: Record<string, unknown>;
 };
 
 async function callAdmin<T>(body: Record<string, unknown>): Promise<T> {

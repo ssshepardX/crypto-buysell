@@ -212,6 +212,12 @@ const BacktestsPanel = () => {
   const [error, setError] = useState<string | null>(null);
 
   const symbols = symbolsText.split(',').map((symbol) => symbol.trim().toUpperCase()).filter(Boolean);
+  const scalarMetrics = result
+    ? Object.entries(result.metrics).filter(([, value]) => typeof value !== 'object' || value === null)
+    : [];
+  const distributionMetrics = result
+    ? Object.entries(result.metrics).filter(([, value]) => value && typeof value === 'object')
+    : [];
 
   const submit = async () => {
     setBusy(true);
@@ -287,14 +293,34 @@ const BacktestsPanel = () => {
 
         {result && (
           <div className="space-y-4">
+            {mode === 'historical_kline' && (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+                Kline-only test. Whale/fraud validation requires snapshot data.
+              </div>
+            )}
+            {mode === 'snapshot' && (
+              <div className="rounded-md border border-cyan-500/30 bg-cyan-500/10 p-3 text-sm text-cyan-100">
+                Snapshot mode uses collected orderbook/trade events. Results are early until at least 7 days of snapshots exist.
+              </div>
+            )}
             <div className="grid gap-3 md:grid-cols-4">
-              {Object.entries(result.metrics).map(([key, value]) => (
+              {scalarMetrics.map(([key, value]) => (
                 <div key={key} className="rounded-md border border-slate-800 bg-slate-950 p-3">
                   <div className="text-xs text-slate-500">{key.replaceAll('_', ' ')}</div>
                   <div className="mt-1 text-xl font-semibold text-white">{String(value)}</div>
                 </div>
               ))}
             </div>
+            {distributionMetrics.length > 0 && (
+              <div className="grid gap-3 md:grid-cols-3">
+                {distributionMetrics.map(([key, value]) => (
+                  <div key={key} className="rounded-md border border-slate-800 bg-slate-950 p-3">
+                    <div className="text-xs text-slate-500">{key.replaceAll('_', ' ')}</div>
+                    <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-xs text-slate-300">{JSON.stringify(value, null, 2)}</pre>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="overflow-x-auto rounded-md border border-slate-800">
               <table className="w-full text-sm">
                 <thead className="bg-slate-950 text-left text-slate-500">
