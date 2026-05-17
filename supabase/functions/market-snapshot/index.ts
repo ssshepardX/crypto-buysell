@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { calculateCause, calculateIndicators, calculateRisk, fetchKlines, fetchOrderbook, fetchRecentTrades, fetchTopSymbols, normalizeTimeframe } from "../_shared/analysis-engine.ts";
 import { hasValidCronSecret, json, requireAdmin, serviceClient } from "../_shared/admin-auth.ts";
+import { finishAutomationRun, startAutomationRun } from "../_shared/automation-runs.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,8 +12,19 @@ async function fetchSmartSymbols(limit: number) {
   const response = await fetch("https://api.binance.com/api/v3/ticker/24hr");
   if (!response.ok) return fetchTopSymbols(limit);
   const rows = await response.json();
+  const excludedAssets = new Set([
+    "USDC", "FDUSD", "TUSD", "USDP", "DAI", "USD1", "EUR", "EURI", "AEUR",
+    "BULL", "BEAR", "UP", "DOWN",
+  ]);
   const usdtRows = (rows as Array<{ symbol: string; quoteVolume: string; priceChangePercent: string }>)
-    .filter((ticker) => ticker.symbol.endsWith("USDT"));
+    .filter((ticker) => ticker.symbol.endsWith("USDT"))
+    .filter((ticker) => Number(ticker.quoteVolume) >= 10_000_000)
+    .filter((ticker) => {
+      const base = ticker.symbol.replace(/USDT$/, "");
+      if (!/^[A-Z0-9]{2,12}$/.test(base)) return false;
+      if (excludedAssets.has(base)) return false;
+      return !/(UP|DOWN|BULL|BEAR)$/.test(base);
+    });
   const byVolume = [...usdtRows]
     .sort((a, b) => Number(b.quoteVolume) - Number(a.quoteVolume))
     .slice(0, Math.ceil(limit / 2))
@@ -89,6 +101,7 @@ async function collect(symbolsInput: string[] | undefined, timeframeInput: unkno
   const supabase = serviceClient();
   const timeframe = normalizeTimeframe(timeframeInput);
   const limit = Math.min(Number(limitInput || 40), 40);
+  const runId = await startAutomationRun("market-snapshot-cache-5m", { timeframe, limit });
   const symbols = (symbolsInput?.length ? symbolsInput : await fetchSmartSymbols(limit)).slice(0, limit);
   const inserted = [];
   const skipped = [];
@@ -166,6 +179,13 @@ async function collect(symbolsInput: string[] | undefined, timeframeInput: unkno
   }
 
   await cleanupOldSnapshots(30);
+  await finishAutomationRun(
+    runId,
+    errors.length && !inserted.length ? "failed" : inserted.length ? "success" : "success_empty",
+    inserted.length,
+    errors.length ? `${errors.length}_symbol_errors` : null,
+    { skipped_count: skipped.length, event_count: events.length, errors: errors.slice(0, 8) },
+  );
   return { inserted, skipped, events, errors, snapshot_count: inserted.length, skipped_count: skipped.length, event_count: events.length };
 }
 
