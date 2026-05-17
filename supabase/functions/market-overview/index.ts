@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { finishAutomationRun, startAutomationRun } from "../_shared/automation-runs.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +13,16 @@ const supabase = createClient(
 );
 
 type OverviewPanelType = "trend_news" | "scanner" | "gainers" | "losers";
+type RunStatus = "not_run" | "success" | "success_empty" | "partial" | "failed";
+
+type PanelMeta = {
+  items: unknown[];
+  created_at: string | null;
+  expires_at: string | null;
+  cache_source: string;
+  run_status: RunStatus;
+  error_summary: string | null;
+};
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -37,25 +48,50 @@ async function requireAuth(req: Request) {
   if (error || !data.user) throw new Error("AUTH_INVALID");
 }
 
-async function readPanel(panel: OverviewPanelType) {
+function emptyPanel(overrides: Partial<PanelMeta> = {}): PanelMeta {
+  return {
+    items: [],
+    created_at: null,
+    expires_at: null,
+    cache_source: "none",
+    run_status: "not_run",
+    error_summary: null,
+    ...overrides,
+  };
+}
+
+async function readLatestRun(jobName: string) {
   const { data, error } = await supabase
-    .from("market_overview_snapshots")
-    .select("payload_json,created_at")
-    .eq("panel_type", panel)
-    .gt("expires_at", new Date().toISOString())
-    .order("created_at", { ascending: false })
+    .from("automation_runs")
+    .select("status,started_at,finished_at,error_summary,items_count,meta_json")
+    .eq("job_name", jobName)
+    .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) return null;
   return data;
 }
 
-async function writePanel(panel: OverviewPanelType, payload: unknown) {
-  await supabase.from("market_overview_snapshots").insert({
+async function readPanel(panel: OverviewPanelType) {
+  const { data, error } = await supabase
+    .from("market_overview_snapshots")
+    .select("payload_json,created_at,expires_at")
+    .eq("panel_type", panel)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return { data, error };
+}
+
+async function writePanel(panel: OverviewPanelType, payload: Record<string, unknown>) {
+  const expiresAt = new Date(Date.now() + ttlMinutes(panel) * 60 * 1000).toISOString();
+  const { error } = await supabase.from("market_overview_snapshots").insert({
     panel_type: panel,
-    payload_json: payload,
-    expires_at: new Date(Date.now() + ttlMinutes(panel) * 60 * 1000).toISOString(),
+    payload_json: { ...payload, expires_at: expiresAt },
+    expires_at: expiresAt,
   });
+  return { expiresAt, error };
 }
 
 async function binance24h() {
@@ -99,15 +135,15 @@ async function scannerRows() {
 }
 
 async function trendRows() {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("sentiment_snapshots")
-    .select("trend_json,score_json,created_at")
+    .select("trend_json,score_json,created_at,expires_at")
     .eq("symbol", "MARKET")
     .gt("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  return data;
+  return { data, error };
 }
 
 async function buildGainerLoserPanels() {
@@ -160,76 +196,201 @@ async function buildScannerPanel() {
 }
 
 async function buildTrendPanel() {
-  const snapshot = await trendRows();
+  const { data: snapshot, error } = await trendRows();
+  if (error) return { items: [], created_at: null, expires_at: null, most_mentioned: null, error_summary: error.message };
   const trends = ((snapshot?.trend_json as Record<string, unknown> | undefined)?.trends as Array<Record<string, unknown>> | undefined) || [];
   const items = trends.slice(0, 10).map((trend) => {
     const source = ((trend.source_json as Record<string, unknown> | undefined)?.items as Array<Record<string, unknown>> | undefined)?.find((item) => item.url) ||
       ((trend.source_json as Record<string, unknown> | undefined)?.items as Array<Record<string, unknown>> | undefined)?.[0];
     return {
-      symbol: trend.symbol,
-      sentiment_score: (trend.score_json as Record<string, unknown>)?.sentiment_score || 0,
-      sentiment_label: (trend.score_json as Record<string, unknown>)?.sentiment_label || "neutral",
-      reason: source?.summary || (trend.trend_json as Record<string, unknown>)?.reason_short || null,
-      title: source?.title || null,
-      url: source?.url || null,
-      domain: source?.domain || null,
-      published_at: source?.published_at || null,
+      symbol: String(trend.symbol || "BTCUSDT"),
+      sentiment_score: Number((trend.score_json as Record<string, unknown>)?.sentiment_score || 0),
+      sentiment_label: String((trend.score_json as Record<string, unknown>)?.sentiment_label || "neutral"),
+      reason: String(source?.summary || (trend.trend_json as Record<string, unknown>)?.reason_short || ""),
+      title: String(source?.title || ""),
+      url: source?.url ? String(source.url) : null,
+      domain: source?.domain ? String(source.domain) : null,
+      published_at: source?.published_at ? String(source.published_at) : null,
     };
   });
   return {
     items,
     created_at: snapshot?.created_at || null,
+    expires_at: snapshot?.expires_at || null,
     most_mentioned: (snapshot?.score_json as Record<string, unknown> | undefined)?.most_mentioned || null,
+    error_summary: null,
   };
 }
 
-async function buildOverview() {
-  const trend_news = await readPanel("trend_news");
-  const scanner = await readPanel("scanner");
-  const gainers = await readPanel("gainers");
-  const losers = await readPanel("losers");
-  if (!trend_news && !scanner && !gainers && !losers) {
-    const [liveTrend, liveScanner, movers] = await Promise.all([
-      buildTrendPanel(),
-      buildScannerPanel(),
-      buildGainerLoserPanels(),
-    ]);
-    return {
-      trend_news: { ...liveTrend, cache_source: "live-fallback" },
-      scanner: { items: liveScanner, cache_source: "live-fallback" },
-      gainers: { items: movers.gainers, cache_source: "live-fallback" },
-      losers: { items: movers.losers, cache_source: "live-fallback" },
-      created_at: new Date().toISOString(),
-    };
+function normalizePanel(
+  payload: Record<string, unknown> | null | undefined,
+  run: Record<string, unknown> | null,
+  fallback?: Partial<PanelMeta>,
+) {
+  const normalized = emptyPanel({
+    ...fallback,
+    items: Array.isArray(payload?.items) ? payload?.items as unknown[] : fallback?.items || [],
+    created_at: typeof payload?.created_at === "string" ? payload.created_at as string : fallback?.created_at || null,
+    expires_at: typeof payload?.expires_at === "string" ? payload.expires_at as string : fallback?.expires_at || null,
+    cache_source: typeof payload?.cache_source === "string" ? payload.cache_source as string : fallback?.cache_source || "none",
+    run_status: typeof payload?.run_status === "string" ? payload.run_status as RunStatus : fallback?.run_status || "not_run",
+    error_summary: typeof payload?.error_summary === "string" ? payload.error_summary as string : fallback?.error_summary || null,
+  });
+  if (run) {
+    normalized.run_status = (run.status as RunStatus) || normalized.run_status;
+    normalized.error_summary = (run.error_summary as string | null) || normalized.error_summary;
+    if (!normalized.created_at) normalized.created_at = String(run.finished_at || run.started_at || "");
   }
+  return normalized;
+}
+
+async function buildOverview() {
+  const [
+    trendPanel,
+    scannerPanel,
+    gainersPanel,
+    losersPanel,
+    trendRun,
+    scannerRun,
+    overviewRun,
+  ] = await Promise.all([
+    readPanel("trend_news"),
+    readPanel("scanner"),
+    readPanel("gainers"),
+    readPanel("losers"),
+    readLatestRun("sentiment-scan-cache-15m"),
+    readLatestRun("market-scanner-cache-15m"),
+    readLatestRun("market-overview-cache-5m"),
+  ]);
+
+  const trendFallback = await buildTrendPanel();
+  const scannerFallbackItems = await buildScannerPanel();
+  const moversFallback = await buildGainerLoserPanels();
+
+  const trendNews = normalizePanel(
+    trendPanel.data?.payload_json as Record<string, unknown> | undefined,
+    trendRun as Record<string, unknown> | null,
+    {
+      items: trendFallback.items,
+      created_at: trendFallback.created_at,
+      expires_at: trendFallback.expires_at,
+      cache_source: trendPanel.data ? "db" : "live-fallback",
+      run_status: trendRun?.status as RunStatus || (trendFallback.items.length ? "success" : "success_empty"),
+      error_summary: trendPanel.error?.message || trendFallback.error_summary,
+    },
+  ) as PanelMeta & { most_mentioned?: string | null };
+
+  const scanner = normalizePanel(
+    scannerPanel.data?.payload_json as Record<string, unknown> | undefined,
+    scannerRun as Record<string, unknown> | null,
+    {
+      items: scannerFallbackItems,
+      created_at: scannerFallbackItems[0]?.created_at || null,
+      cache_source: scannerPanel.data ? "db" : "live-fallback",
+      run_status: scannerRun?.status as RunStatus || (scannerFallbackItems.length ? "success" : "success_empty"),
+      error_summary: scannerPanel.error?.message || null,
+    },
+  );
+
+  const gainers = normalizePanel(
+    gainersPanel.data?.payload_json as Record<string, unknown> | undefined,
+    overviewRun as Record<string, unknown> | null,
+    {
+      items: moversFallback.gainers,
+      cache_source: gainersPanel.data ? "db" : "live-fallback",
+      run_status: moversFallback.gainers.length ? "success" : "success_empty",
+      error_summary: gainersPanel.error?.message || null,
+    },
+  );
+
+  const losers = normalizePanel(
+    losersPanel.data?.payload_json as Record<string, unknown> | undefined,
+    overviewRun as Record<string, unknown> | null,
+    {
+      items: moversFallback.losers,
+      cache_source: losersPanel.data ? "db" : "live-fallback",
+      run_status: moversFallback.losers.length ? "success" : "success_empty",
+      error_summary: losersPanel.error?.message || null,
+    },
+  );
+
   return {
-    trend_news: trend_news?.payload_json || { items: [], created_at: null, cache_source: "db" },
-    scanner: scanner?.payload_json || { items: [], cache_source: "db" },
-    gainers: gainers?.payload_json || { items: [], cache_source: "db" },
-    losers: losers?.payload_json || { items: [], cache_source: "db" },
-    created_at: [trend_news?.created_at, scanner?.created_at, gainers?.created_at, losers?.created_at].filter(Boolean).sort().at(-1) || null,
+    trend_news: {
+      ...trendNews,
+      most_mentioned: (trendPanel.data?.payload_json as Record<string, unknown> | undefined)?.most_mentioned || trendFallback.most_mentioned || null,
+    },
+    scanner,
+    gainers,
+    losers,
+    created_at: [trendNews.created_at, scanner.created_at, gainers.created_at, losers.created_at].filter(Boolean).sort().at(-1) || null,
   };
 }
 
 async function refreshOverview() {
-  const [trend_news, scanner, movers] = await Promise.all([
-    buildTrendPanel(),
-    buildScannerPanel(),
-    buildGainerLoserPanels(),
-  ]);
-  await Promise.all([
-    writePanel("trend_news", { ...trend_news, cache_source: "cron" }),
-    writePanel("scanner", { items: scanner, cache_source: "cron" }),
-    writePanel("gainers", { items: movers.gainers, cache_source: "cron" }),
-    writePanel("losers", { items: movers.losers, cache_source: "cron" }),
-  ]);
-  return {
-    trend_news: { ...trend_news, cache_source: "cron" },
-    scanner: { items: scanner, cache_source: "cron" },
-    gainers: { items: movers.gainers, cache_source: "cron" },
-    losers: { items: movers.losers, cache_source: "cron" },
-    created_at: new Date().toISOString(),
-  };
+  const runId = await startAutomationRun("market-overview-cache-5m");
+  try {
+    const [trend_news, scannerItems, movers] = await Promise.all([
+      buildTrendPanel(),
+      buildScannerPanel(),
+      buildGainerLoserPanels(),
+    ]);
+
+    const trendPayload = {
+      items: trend_news.items,
+      created_at: trend_news.created_at || new Date().toISOString(),
+      cache_source: "cron",
+      run_status: trend_news.items.length ? "success" : "success_empty",
+      error_summary: trend_news.error_summary,
+      most_mentioned: trend_news.most_mentioned,
+    };
+    const scannerPayload = {
+      items: scannerItems,
+      created_at: scannerItems[0]?.created_at || new Date().toISOString(),
+      cache_source: "cron",
+      run_status: scannerItems.length ? "success" : "success_empty",
+      error_summary: null,
+    };
+    const gainersPayload = {
+      items: movers.gainers,
+      created_at: new Date().toISOString(),
+      cache_source: "cron",
+      run_status: movers.gainers.length ? "success" : "success_empty",
+      error_summary: null,
+    };
+    const losersPayload = {
+      items: movers.losers,
+      created_at: new Date().toISOString(),
+      cache_source: "cron",
+      run_status: movers.losers.length ? "success" : "success_empty",
+      error_summary: null,
+    };
+
+    const writes = await Promise.all([
+      writePanel("trend_news", trendPayload),
+      writePanel("scanner", scannerPayload),
+      writePanel("gainers", gainersPayload),
+      writePanel("losers", losersPayload),
+    ]);
+    const writeErrors = writes.map((write) => write.error?.message).filter(Boolean);
+    const status: RunStatus = writeErrors.length
+      ? "partial"
+      : (trend_news.items.length || scannerItems.length || movers.gainers.length || movers.losers.length ? "success" : "success_empty");
+
+    await finishAutomationRun(runId, status, trend_news.items.length + scannerItems.length + movers.gainers.length + movers.losers.length, writeErrors.join(" | ") || null, {
+      write_errors: writeErrors,
+    });
+
+    return {
+      trend_news: { ...trendPayload, expires_at: writes[0].expiresAt },
+      scanner: { ...scannerPayload, expires_at: writes[1].expiresAt },
+      gainers: { ...gainersPayload, expires_at: writes[2].expiresAt },
+      losers: { ...losersPayload, expires_at: writes[3].expiresAt },
+      created_at: new Date().toISOString(),
+    };
+  } catch (error) {
+    await finishAutomationRun(runId, "failed", 0, error instanceof Error ? error.message.slice(0, 400) : "market_overview_failed");
+    throw error;
+  }
 }
 
 serve(async (req) => {
@@ -244,3 +405,4 @@ serve(async (req) => {
     return json({ error: message }, status);
   }
 });
+

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { finishAutomationRun, startAutomationRun } from "../_shared/automation-runs.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1163,11 +1164,11 @@ function anomalyStrength(risk: RiskSummary, cause?: CauseSummary) {
 }
 
 function isHighSignalAnalysis(risk: RiskSummary, cause?: CauseSummary) {
-  return anomalyStrength(risk, cause) >= 42 ||
-    risk.pump_dump_risk_score >= 45 ||
-    risk.whale_risk_score >= 48 ||
-    risk.volume_confirmation_score >= 52 ||
-    Number(cause?.early_warning_score || 0) >= 48 ||
+  return anomalyStrength(risk, cause) >= 38 ||
+    risk.pump_dump_risk_score >= 42 ||
+    risk.whale_risk_score >= 44 ||
+    risk.volume_confirmation_score >= 46 ||
+    Number(cause?.early_warning_score || 0) >= 44 ||
     (cause?.likely_cause === "news_social_catalyst" && Number(cause?.confidence_score || 0) >= 50);
 }
 
@@ -1179,10 +1180,10 @@ async function shouldDeepScan(symbol: string) {
   const previous = klines.at(-2);
   const movePct = latest && previous?.close ? Math.abs((latest.close - previous.close) / previous.close * 100) : 0;
   return movePct >= 0.35 ||
-    indicators.volumeZScore >= 1.2 ||
+    indicators.volumeZScore >= 1.0 ||
     indicators.rangeBreakout ||
-    indicators.candleExpansion >= 1.35 ||
-    Math.abs(indicators.vwapDistancePct) >= 0.7;
+    indicators.candleExpansion >= 1.25 ||
+    Math.abs(indicators.vwapDistancePct) >= 0.55;
 }
 
 async function analyzeCoin(symbolInput: string, timeframeInput: string, auth: AuthContext, force = false, language: OutputLanguage = "tr") {
@@ -1294,32 +1295,49 @@ async function analyzeCoin(symbolInput: string, timeframeInput: string, auth: Au
 }
 
 async function scanMarket(auth: AuthContext) {
-  if (!auth.entitlement.canRunScanner) {
-    throw new ApiError(403, "SCANNER_REQUIRES_TRADER", "Market scanner tetikleme Trader planinda aciktir.", {
-      plan: auth.plan,
-    });
-  }
-  await incrementUsage(auth.userId, "scanner_run_count");
-  const symbols = await fetchTopSymbols(40);
-  const analyzed = [];
-  let forcedChecks = 0;
-  for (const symbol of symbols) {
-    try {
-      const deepScan = await shouldDeepScan(symbol);
-      if (!deepScan && forcedChecks >= 8) continue;
-      if (!deepScan) forcedChecks += 1;
-      const result = await analyzeCoin(symbol, "15m", auth, false, "tr");
-      const risk = result.risk_json as RiskSummary;
-      const cause = result.cause_json as CauseSummary | undefined;
-      if (isHighSignalAnalysis(risk, cause)) {
-        analyzed.push(result);
-      }
-      if (analyzed.length >= 12) break;
-    } catch (error) {
-      console.error(`scan failed for ${symbol}:`, error);
+  const runId = await startAutomationRun("market-scanner-cache-15m", {
+    plan: auth.plan,
+    cron: Boolean(auth.cron),
+  });
+  try {
+    if (!auth.entitlement.canRunScanner) {
+      await finishAutomationRun(runId, "failed", 0, "scanner_requires_trader", { plan: auth.plan });
+      throw new ApiError(403, "SCANNER_REQUIRES_TRADER", "Market scanner tetikleme Trader planinda aciktir.", {
+        plan: auth.plan,
+      });
     }
+    await incrementUsage(auth.userId, "scanner_run_count");
+    const symbols = await fetchTopSymbols(40);
+    const analyzed = [];
+    let forcedChecks = 0;
+    let deepScans = 0;
+    for (const symbol of symbols) {
+      try {
+        const deepScan = await shouldDeepScan(symbol);
+        if (!deepScan && forcedChecks >= 8) continue;
+        if (!deepScan) forcedChecks += 1;
+        else deepScans += 1;
+        const result = await analyzeCoin(symbol, "15m", auth, false, "tr");
+        const risk = result.risk_json as RiskSummary;
+        const cause = result.cause_json as CauseSummary | undefined;
+        if (isHighSignalAnalysis(risk, cause)) {
+          analyzed.push(result);
+        }
+        if (analyzed.length >= 12) break;
+      } catch (error) {
+        console.error(`scan failed for ${symbol}:`, error);
+      }
+    }
+    await finishAutomationRun(runId, analyzed.length ? "success" : "success_empty", analyzed.length, null, {
+      symbols_considered: symbols.length,
+      deep_scans: deepScans,
+      forced_checks: forcedChecks,
+    });
+    return analyzed;
+  } catch (error) {
+    await finishAutomationRun(runId, "failed", 0, error instanceof Error ? error.message.slice(0, 400) : "scan_market_failed");
+    throw error;
   }
-  return analyzed;
 }
 
 async function readScannerFeed() {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, Brain, Clock, ExternalLink, Flame, ShieldAlert, Zap } from 'lucide-react';
+import { Activity, ArrowDownRight, ArrowUpRight, BarChart3, Brain, Clock, ExternalLink, Flame, ShieldAlert, Zap } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import ScanningCard from '@/components/ScanningCard';
 import Sparkline from '@/components/Sparkline';
@@ -46,7 +46,6 @@ const DashboardPage = () => {
     ),
     [recentAnalyses]
   );
-  const latestAnalysisAt = meaningfulAnalyses[0]?.created_at || null;
   const hotNewsItems = overview?.trend_news.items || [];
   const scannerItems = overview?.scanner.items || [];
   const gainers = overview?.gainers.items || [];
@@ -177,14 +176,14 @@ const DashboardPage = () => {
                   <div className="flex items-center justify-between gap-3">
                     <Link to={`/analysis/${item.symbol}`} className="font-semibold text-slate-100 hover:text-cyan-300">{item.symbol.replace('USDT', '')}</Link>
                     <div className="flex items-center gap-2">
-                      <SentimentBadge label={item.sentimentLabel} score={item.sentimentScore} />
+                      <SentimentBadge label={item.sentiment_label} score={item.sentiment_score} />
                     </div>
                   </div>
                   <p className="mt-2 line-clamp-1 text-sm font-medium text-slate-200">{item.title}</p>
-                  <p className="mt-1 line-clamp-2 text-sm text-slate-400">{item.summary}</p>
+                  <p className="mt-1 line-clamp-2 text-sm text-slate-400">{item.reason}</p>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs">
                     <Badge className="bg-slate-800 text-slate-300">{item.domain || 'RSS source'}</Badge>
-                    <Badge className="bg-slate-800 text-slate-300">Impact {item.score}/100</Badge>
+                    <Badge className="bg-slate-800 text-slate-300">Mood {item.sentiment_score}/100</Badge>
                     {item.published_at && <Badge className="bg-slate-800 text-slate-300">{new Date(item.published_at).toLocaleDateString('tr-TR')}</Badge>}
                   </div>
                   <div className="mt-3 flex items-center gap-3 text-xs">
@@ -200,9 +199,9 @@ const DashboardPage = () => {
             </div>
           ) : (
             <div className="rounded-md border border-slate-800 bg-slate-950 p-5">
-              <div className="text-sm font-medium text-slate-200">No verified news catalyst in latest auto sweep</div>
+              <div className="text-sm font-medium text-slate-200">{trendStateTitle(overview?.trend_news.run_status)}</div>
               <p className="mt-1 text-sm text-slate-400">
-                {overviewError || 'RSS cache has no high-value coin-linked item yet. No placeholder cards.'}
+                {overview?.trend_news.error_summary || overviewError || trendStateText(overview?.trend_news.run_status, 'rss')}
               </p>
               <span className="mt-4 inline-block text-xs text-slate-500">Auto refresh every 15m. Verified RSS only.</span>
             </div>
@@ -218,7 +217,7 @@ const DashboardPage = () => {
               <Trans text="Cron-fed anomaly cache. Shows only recent high-signal movement candidates." />
             </p>
             <p className="mt-2 text-xs text-slate-500">
-              {latestAnalysisAt ? `Auto scan ${new Date(latestAnalysisAt).toLocaleTimeString('tr-TR')}` : 'Waiting for anomaly cache'}
+              {overview?.scanner.created_at ? `Auto scan ${new Date(overview.scanner.created_at).toLocaleTimeString('tr-TR')}` : 'Waiting for anomaly cache'}
             </p>
           </div>
           <Badge className="bg-slate-800 text-cyan-200">Auto anomaly watch</Badge>
@@ -246,7 +245,7 @@ const DashboardPage = () => {
             </div>
           ) : (
             <div className="rounded-md border border-slate-800 bg-slate-950 p-4 text-sm text-slate-400">
-              No anomaly crossed scanner threshold yet. Cron keeps sampling top pairs every 15m.
+              {overview?.scanner.error_summary || trendStateText(overview?.scanner.run_status, 'scanner')}
             </div>
           )}
         </CardContent>
@@ -341,12 +340,6 @@ const MetricCard = ({ icon: Icon, label, value, loading = false }: { icon: React
   </Card>
 );
 
-const TrendIcon = ({ direction }: { direction: 'up' | 'down' | 'flat' }) => {
-  if (direction === 'up') return <ArrowUpRight className="h-4 w-4 text-emerald-400" />;
-  if (direction === 'down') return <ArrowDownRight className="h-4 w-4 text-rose-400" />;
-  return <ArrowRight className="h-4 w-4 text-slate-400" />;
-};
-
 const SentimentBadge = ({ label, score }: { label: string; score: number }) => (
   <Badge className={cn(
     'bg-slate-800',
@@ -431,5 +424,25 @@ const OverviewPanel = ({
     </CardContent>
   </Card>
 );
+
+const trendStateTitle = (status?: string | null) => {
+  if (status === 'failed') return 'Latest automated sweep failed';
+  if (status === 'success_empty') return 'No verified news catalyst in latest auto sweep';
+  if (status === 'partial') return 'Latest automated sweep completed with warnings';
+  return 'No verified news catalyst in latest auto sweep';
+};
+
+const trendStateText = (status?: string | null, kind: 'rss' | 'scanner' = 'rss') => {
+  if (kind === 'scanner') {
+    if (status === 'failed') return 'Last scanner run failed. Cached anomaly feed could not be refreshed.';
+    if (status === 'success_empty') return 'Last scanner run completed. No anomaly crossed the current threshold.';
+    if (status === 'partial') return 'Scanner refreshed with partial data. Review recent movement checks below.';
+    return 'Scanner has not completed a successful cached run yet.';
+  }
+  if (status === 'failed') return 'Last RSS sweep failed. Cached news feed could not be refreshed.';
+  if (status === 'success_empty') return 'RSS sweep completed successfully but found no verified coin-linked catalyst.';
+  if (status === 'partial') return 'RSS sweep completed with partial provider failures. Showing verified items only.';
+  return 'RSS cache has not completed a successful sweep yet.';
+};
 
 export default DashboardPage;

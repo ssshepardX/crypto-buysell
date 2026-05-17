@@ -5,10 +5,10 @@ export type OverviewTrendItem = {
   sentiment_score: number;
   sentiment_label: 'bad' | 'neutral' | 'good';
   reason: string | null;
-  title: string | null;
-  url: string | null;
-  domain: string | null;
-  published_at: string | null;
+  title?: string | null;
+  url?: string | null;
+  domain?: string | null;
+  published_at?: string | null;
 };
 
 export type OverviewMoverItem = {
@@ -36,10 +36,10 @@ export type OverviewScannerItem = {
 };
 
 export type MarketOverviewPayload = {
-  trend_news: { items: OverviewTrendItem[]; created_at: string | null; most_mentioned: string | null; cache_source: string };
-  scanner: { items: OverviewScannerItem[]; cache_source: string };
-  gainers: { items: OverviewMoverItem[]; cache_source: string };
-  losers: { items: OverviewMoverItem[]; cache_source: string };
+  trend_news: { items: OverviewTrendItem[]; created_at: string | null; expires_at?: string | null; most_mentioned: string | null; cache_source: string; run_status: string; error_summary: string | null };
+  scanner: { items: OverviewScannerItem[]; created_at: string | null; expires_at?: string | null; cache_source: string; run_status: string; error_summary: string | null };
+  gainers: { items: OverviewMoverItem[]; created_at: string | null; expires_at?: string | null; cache_source: string; run_status: string; error_summary: string | null };
+  losers: { items: OverviewMoverItem[]; created_at: string | null; expires_at?: string | null; cache_source: string; run_status: string; error_summary: string | null };
   created_at: string | null;
 };
 

@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { scanMarketSentiment, scanSymbolSentiment } from "../_shared/sentiment-engine.ts";
 import { adminEmails, hasValidCronSecret, json, serviceClient } from "../_shared/admin-auth.ts";
 import { normalizeSymbol } from "../_shared/analysis-engine.ts";
+import { finishAutomationRun, startAutomationRun } from "../_shared/automation-runs.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,7 +26,7 @@ class ApiError extends Error {
 }
 
 function ttlMinutes(mode: string, hasSignal = true) {
-  if (mode === "market") return hasSignal ? 60 : 15;
+  if (mode === "market") return 15;
   return hasSignal ? 720 : 60;
 }
 
@@ -145,20 +146,46 @@ async function updateSources(result: Record<string, unknown>) {
 }
 
 async function marketScan(limitInput: unknown) {
+  const runId = await startAutomationRun("sentiment-scan-cache-15m", {
+    requested_limit: Number(limitInput || 12),
+  });
   const limit = Math.min(Math.max(Number(limitInput || 12), 3), 20);
-  const cached = await readCached("MARKET", "market");
-  if (cached) return { trends: cached.trend_json?.trends || [], summary: cached.score_json || {}, cache_hit: true, created_at: cached.created_at };
+  try {
+    const cached = await readCached("MARKET", "market");
+    if (cached) {
+      await finishAutomationRun(runId, "success", Array.isArray(cached.trend_json?.trends) ? cached.trend_json.trends.length : 0, null, {
+        cache_hit: true,
+      });
+      return { trends: cached.trend_json?.trends || [], summary: cached.score_json || {}, cache_hit: true, created_at: cached.created_at };
+    }
 
-  const trends = await scanMarketSentiment(limit);
-  for (const result of trends) await updateSources(result as unknown as Record<string, unknown>);
-  const summary = {
-    most_mentioned: trends[0]?.symbol || null,
-    news_mood: trends.length ? Math.round(trends.reduce((sum, item) => sum + item.score_json.sentiment_score, 0) / trends.length) : 50,
-    reddit_heat: trends.length ? Math.round(trends.reduce((sum, item) => sum + item.trend_json.reddit_heat, 0) / trends.length) : 0,
-    asia_watch: trends.length ? Math.round(trends.reduce((sum, item) => sum + item.trend_json.asia_watch_score, 0) / trends.length) : 0,
-  };
-  await writeSnapshot("MARKET", { trends, summary }, "market");
-  return { trends, summary, cache_hit: false, created_at: new Date().toISOString() };
+    const trends = await scanMarketSentiment(limit);
+    for (const result of trends) await updateSources(result as unknown as Record<string, unknown>);
+    const summary = {
+      most_mentioned: trends[0]?.symbol || null,
+      news_mood: trends.length ? Math.round(trends.reduce((sum, item) => sum + item.score_json.sentiment_score, 0) / trends.length) : 50,
+      reddit_heat: trends.length ? Math.round(trends.reduce((sum, item) => sum + item.trend_json.reddit_heat, 0) / trends.length) : 0,
+      asia_watch: trends.length ? Math.round(trends.reduce((sum, item) => sum + item.trend_json.asia_watch_score, 0) / trends.length) : 0,
+      provider_failures: trends.flatMap((trend) =>
+        Object.values(trend.source_json.providers).filter((provider) => provider.error).map((provider) => provider.error)
+      ).filter(Boolean).slice(0, 8),
+    };
+    await writeSnapshot("MARKET", { trends, summary }, "market");
+    await finishAutomationRun(runId, trends.length ? "success" : "success_empty", trends.length, null, {
+      cache_hit: false,
+      summary,
+    });
+    return { trends, summary, cache_hit: false, created_at: new Date().toISOString() };
+  } catch (error) {
+    await finishAutomationRun(
+      runId,
+      "failed",
+      0,
+      error instanceof Error ? error.message.slice(0, 400) : "sentiment_market_failed",
+      {}
+    );
+    throw error;
+  }
 }
 
 async function coinScan(symbolInput: unknown) {
