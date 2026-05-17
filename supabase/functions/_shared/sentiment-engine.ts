@@ -5,6 +5,7 @@ export type TrendDirection = "up" | "down" | "flat";
 
 export type SentimentItem = {
   provider: "news" | "reddit" | "asia_watch" | "cryptopanic" | "coingecko" | "x";
+  item_type?: "direct_coin_catalyst" | "market_catalyst";
   title: string;
   summary: string;
   title_hash: string;
@@ -116,10 +117,18 @@ function catalystTerms(text: string) {
   return TERMS.filter((term) => lower.includes(term)).slice(0, 8);
 }
 
-async function item(provider: SentimentItem["provider"], title: string, snippet = "", url = "", created_hint = ""): Promise<SentimentItem> {
+async function item(
+  provider: SentimentItem["provider"],
+  title: string,
+  snippet = "",
+  url = "",
+  created_hint = "",
+  item_type: SentimentItem["item_type"] = "direct_coin_catalyst",
+): Promise<SentimentItem> {
   const text = `${title} ${snippet}`;
   return {
     provider,
+    item_type,
     title: title.slice(0, 180),
     summary: snippet.slice(0, 260),
     title_hash: await hashText(`${provider}:${title}:${url}`),
@@ -129,6 +138,16 @@ async function item(provider: SentimentItem["provider"], title: string, snippet 
     catalyst_terms: catalystTerms(text),
     published_at: created_hint || undefined,
   };
+}
+
+function isMarketCatalyst(text: string) {
+  const lower = text.toLowerCase();
+  const marketTerms = [
+    "bitcoin", "crypto", "stablecoin", "etf", "sec", "regulation", "binance", "coinbase",
+    "liquidation", "hack", "exploit", "whale", "exchange", "fed", "rates", "hong kong",
+    "china", "japan", "korea", "lawsuit", "approval", "inflow", "outflow",
+  ];
+  return marketTerms.some((term) => lower.includes(term)) || catalystTerms(text).length > 0;
 }
 
 function stripXml(text = "") {
@@ -392,6 +411,24 @@ export async function scanMarketSentiment(limit = 12): Promise<SentimentResult[]
       x: xStatus(),
     }, index + 1);
     if (result.score_json.source_count > 0) results.push(result);
+  }
+  const usedUrls = new Set(results.flatMap((result) => result.source_json.items.map((row) => row.url || row.title_hash)));
+  const marketRows = [...newsRows, ...asiaRows]
+    .filter((row) => row.title && isMarketCatalyst(`${row.title} ${row.snippet}`))
+    .filter((row) => !usedUrls.has(row.link))
+    .slice(0, Math.max(6, Math.min(limit, 12)));
+  if (marketRows.length) {
+    const marketItems = await Promise.all(marketRows.map((row) =>
+      item(row.provider, row.title, row.snippet, row.link, row.created, "market_catalyst")
+    ));
+    results.push(aggregate("MARKETUSDT", {
+      news: { status: marketItems.length ? "configured" : "provider_error", items: marketItems.filter((row) => row.provider === "news"), error: failedNews ? `${failedNews}_feed_failed` : undefined },
+      asia_watch: { status: "configured", items: marketItems.filter((row) => row.provider === "asia_watch"), error: failedAsia ? `${failedAsia}_feed_failed` : undefined },
+      reddit: { status: "disabled_rss_only_mode", items: [] },
+      cryptopanic: { status: "disabled_free_mode", items: [] },
+      coingecko: { status: "disabled_free_mode", items: [] },
+      x: xStatus(),
+    }, 0));
   }
   return results.sort((a, b) => (b.score_json.mention_score + b.score_json.source_confidence * 0.25) - (a.score_json.mention_score + a.score_json.source_confidence * 0.25));
 }

@@ -183,7 +183,7 @@ async function buildGainerLoserPanels() {
 async function buildScannerPanel() {
   const rows = await scannerRows();
   const seen = new Set<string>();
-  const items = await Promise.all(rows
+  const cachedItems = await Promise.all(rows
     .filter((row: Record<string, unknown>) => {
       const symbol = row.symbol as string;
       if (seen.has(symbol)) return false;
@@ -191,17 +191,45 @@ async function buildScannerPanel() {
       return true;
     })
     .slice(0, 10)
-    .map(async (row: Record<string, unknown>) => ({
-      symbol: row.symbol,
-      created_at: row.created_at,
-      risk_score: (row.risk_json as Record<string, unknown>)?.pump_dump_risk_score || 0,
-      confidence: (row.cause_json as Record<string, unknown>)?.confidence_score || 0,
-      cause: (row.cause_json as Record<string, unknown>)?.likely_cause || null,
-      continuation: (row.continuation_json as Record<string, unknown>)?.continuation_label || null,
-      reason: (row.ai_summary_json as Record<string, unknown>)?.catalyst_summary || (row.ai_summary_json as Record<string, unknown>)?.summary_tr || null,
-      sparkline: await binanceSparkline(row.symbol as string),
-    })));
-  return items;
+    .map(async (row: Record<string, unknown>) => {
+      const risk = row.risk_json as Record<string, unknown> | undefined;
+      const cause = row.cause_json as Record<string, unknown> | undefined;
+      const riskScore = Number(risk?.pump_dump_risk_score || 0);
+      const whaleScore = Number(risk?.whale_risk_score || 0);
+      const confidence = Number(cause?.confidence_score || 0);
+      const signalLevel = riskScore >= 42 || whaleScore >= 44 || confidence >= 70 ? "high_signal" : "watchlist";
+      return {
+        symbol: row.symbol,
+        created_at: row.created_at,
+        signal_level: signalLevel,
+        risk_score: riskScore,
+        confidence,
+        cause: cause?.likely_cause || null,
+        continuation: (row.continuation_json as Record<string, unknown>)?.continuation_label || null,
+        reason: (row.ai_summary_json as Record<string, unknown>)?.catalyst_summary || (row.ai_summary_json as Record<string, unknown>)?.summary_tr || "Cached market movement worth monitoring.",
+        sparkline: await binanceSparkline(row.symbol as string),
+      };
+    }));
+
+  if (cachedItems.length >= 3) return cachedItems;
+
+  const market = await binance24h();
+  const movers = market
+    .sort((a, b) => Math.abs(b.price_change_percent) - Math.abs(a.price_change_percent))
+    .filter((row) => !seen.has(row.symbol))
+    .slice(0, 6 - cachedItems.length);
+  const moverItems = await Promise.all(movers.map(async (row) => ({
+    symbol: row.symbol,
+    created_at: new Date().toISOString(),
+    signal_level: "watchlist",
+    risk_score: Math.min(100, Math.round(Math.abs(row.price_change_percent) * 6)),
+    confidence: Math.min(85, Math.round(Math.log10(Math.max(row.quote_volume, 1)) * 10)),
+    cause: row.price_change_percent >= 0 ? "organic_demand" : "balanced_market",
+    continuation: "mixed",
+    reason: `${Math.abs(row.price_change_percent).toFixed(2)}% 24h move with elevated market attention.`,
+    sparkline: await binanceSparkline(row.symbol),
+  })));
+  return [...cachedItems, ...moverItems];
 }
 
 async function buildTrendPanel() {
@@ -213,6 +241,7 @@ async function buildTrendPanel() {
       ((trend.source_json as Record<string, unknown> | undefined)?.items as Array<Record<string, unknown>> | undefined)?.[0];
     return {
       symbol: String(trend.symbol || "BTCUSDT"),
+      item_type: String(source?.item_type || (String(trend.symbol || "").startsWith("MARKET") ? "market_catalyst" : "direct_coin_catalyst")),
       sentiment_score: Number((trend.score_json as Record<string, unknown>)?.sentiment_score || 0),
       sentiment_label: String((trend.score_json as Record<string, unknown>)?.sentiment_label || "neutral"),
       reason: String(source?.summary || (trend.trend_json as Record<string, unknown>)?.reason_short || ""),

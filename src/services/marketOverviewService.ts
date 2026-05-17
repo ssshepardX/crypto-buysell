@@ -2,6 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type OverviewTrendItem = {
   symbol: string;
+  item_type?: 'direct_coin_catalyst' | 'market_catalyst';
   sentiment_score: number;
   sentiment_label: 'bad' | 'neutral' | 'good';
   reason: string | null;
@@ -27,6 +28,7 @@ export type OverviewMoverItem = {
 export type OverviewScannerItem = {
   symbol: string;
   created_at: string;
+  signal_level?: 'high_signal' | 'watchlist' | 'quiet';
   risk_score: number;
   confidence: number;
   cause: string | null;

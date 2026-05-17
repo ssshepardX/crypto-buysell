@@ -145,7 +145,7 @@ const DashboardPage = () => {
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <div>
             <CardTitle className="text-base"><Trans text="Trend Intelligence" /></CardTitle>
-            <p className="mt-1 text-sm text-slate-400"><Trans text="Highest-value cached RSS items from the last automated sweep." /></p>
+            <p className="mt-1 text-sm text-slate-400"><Trans text="Latest RSS market catalysts from the automated sweep." /></p>
             <p className="mt-2 text-xs text-slate-500">
               {overview?.trend_news.created_at ? `Auto sweep ${new Date(overview.trend_news.created_at).toLocaleTimeString('tr-TR')}` : 'Waiting for RSS cache'}
             </p>
@@ -174,7 +174,11 @@ const DashboardPage = () => {
                 return (
                 <div key={`${item.symbol}-${item.url}`} className="rounded-md border border-slate-800 bg-slate-950 p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <Link to={`/analysis/${item.symbol}`} className="font-semibold text-slate-100 hover:text-cyan-300">{item.symbol.replace('USDT', '')}</Link>
+                    {item.symbol.startsWith('MARKET') ? (
+                      <span className="font-semibold text-slate-100">Market</span>
+                    ) : (
+                      <Link to={`/analysis/${item.symbol}`} className="font-semibold text-slate-100 hover:text-cyan-300">{item.symbol.replace('USDT', '')}</Link>
+                    )}
                     <div className="flex items-center gap-2">
                       <SentimentBadge label={item.sentiment_label} score={item.sentiment_score} />
                     </div>
@@ -182,6 +186,7 @@ const DashboardPage = () => {
                   <p className="mt-2 line-clamp-1 text-sm font-medium text-slate-200">{item.title}</p>
                   <p className="mt-1 line-clamp-2 text-sm text-slate-400">{item.reason}</p>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    <Badge className="bg-slate-800 text-slate-300">{item.item_type === 'market_catalyst' ? 'Market-wide catalyst' : 'Coin catalyst'}</Badge>
                     <Badge className="bg-slate-800 text-slate-300">{item.domain || 'RSS source'}</Badge>
                     <Badge className="bg-slate-800 text-slate-300">Mood {item.sentiment_score}/100</Badge>
                     {item.published_at && <Badge className="bg-slate-800 text-slate-300">{new Date(item.published_at).toLocaleDateString('tr-TR')}</Badge>}
@@ -192,7 +197,7 @@ const DashboardPage = () => {
                         Read source <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
-                    <Link to={`/analysis/${item.symbol}`} className="text-slate-400 hover:text-slate-200">Open analysis</Link>
+                    {!item.symbol.startsWith('MARKET') && <Link to={`/analysis/${item.symbol}`} className="text-slate-400 hover:text-slate-200">Open analysis</Link>}
                   </div>
                 </div>
               );})}
@@ -214,7 +219,7 @@ const DashboardPage = () => {
           <div>
             <CardTitle className="text-base"><Trans text="Movement scanner" /></CardTitle>
             <p className="mt-1 text-sm text-slate-400">
-              <Trans text="Cron-fed anomaly cache. Shows only recent high-signal movement candidates." />
+              <Trans text="Automated watchlist for notable price, liquidity, and risk moves." />
             </p>
             <p className="mt-2 text-xs text-slate-500">
               {overview?.scanner.created_at ? `Auto scan ${new Date(overview.scanner.created_at).toLocaleTimeString('tr-TR')}` : 'Waiting for anomaly cache'}
@@ -237,7 +242,7 @@ const DashboardPage = () => {
                     <span className="font-semibold text-slate-100">{item.symbol.replace('USDT', '')}</span>
                     <Badge className="bg-slate-800 text-cyan-200">{item.confidence}/100</Badge>
                   </div>
-                  <p className="mt-2 text-sm text-slate-400">{causeLabel(item.cause || undefined)}</p>
+                  <p className="mt-2 text-sm text-slate-400">{scannerSignalLabel(item.signal_level)} · {causeLabel(item.cause || undefined)}</p>
                   <p className="mt-1 text-xs text-slate-500">{formatContinuationLabel(item.continuation || undefined)} / Risk {item.risk_score}/100</p>
                   <Sparkline values={item.sparkline} positive={(item.sparkline.at(-1) || 0) >= (item.sparkline[0] || 0)} className="mt-3" />
                 </Link>
@@ -245,7 +250,7 @@ const DashboardPage = () => {
             </div>
           ) : (
             <div className="rounded-md border border-slate-800 bg-slate-950 p-4 text-sm text-slate-400">
-              {overview?.scanner.error_summary || trendStateText(overview?.scanner.run_status, 'scanner')}
+              {overview?.scanner.error_summary ? 'Market intelligence is updating. Last cache remains visible.' : trendStateText(overview?.scanner.run_status, 'scanner')}
             </div>
           )}
         </CardContent>
@@ -371,6 +376,12 @@ const causeLabel = (cause?: string) => {
   return labels[cause || ''] || 'Movement classified';
 };
 
+const scannerSignalLabel = (level?: string) => {
+  if (level === 'high_signal') return 'High signal';
+  if (level === 'watchlist') return 'Watchlist';
+  return 'Market quiet';
+};
+
 const OverviewPanel = ({
   title,
   subtitle,
@@ -427,20 +438,20 @@ const OverviewPanel = ({
 
 const trendStateTitle = (status?: string | null) => {
   if (status === 'failed') return 'Latest automated sweep failed';
-  if (status === 'success_empty') return 'No verified news catalyst in latest auto sweep';
+  if (status === 'success_empty') return 'Latest market news';
   if (status === 'partial') return 'Latest automated sweep completed with warnings';
-  return 'No verified news catalyst in latest auto sweep';
+  return 'Latest market news';
 };
 
 const trendStateText = (status?: string | null, kind: 'rss' | 'scanner' = 'rss') => {
   if (kind === 'scanner') {
     if (status === 'failed') return 'Last scanner run failed. Cached anomaly feed could not be refreshed.';
-    if (status === 'success_empty') return 'Last scanner run completed. No anomaly crossed the current threshold.';
+    if (status === 'success_empty') return 'Market quiet in latest scan.';
     if (status === 'partial') return 'Scanner refreshed with partial data. Review recent movement checks below.';
-    return 'Scanner has not completed a successful cached run yet.';
+    return 'Market intelligence is warming up.';
   }
   if (status === 'failed') return 'Last RSS sweep failed. Cached news feed could not be refreshed.';
-  if (status === 'success_empty') return 'RSS sweep completed successfully but found no verified coin-linked catalyst.';
+  if (status === 'success_empty') return 'Latest sweep completed. Waiting for stronger market catalysts.';
   if (status === 'partial') return 'RSS sweep completed with partial provider failures. Showing verified items only.';
   return 'RSS cache has not completed a successful sweep yet.';
 };

@@ -145,13 +145,13 @@ async function updateSources(result: Record<string, unknown>) {
   if (failed) console.error("sentiment source status writes failed:", failed);
 }
 
-async function marketScan(limitInput: unknown) {
+async function marketScan(limitInput: unknown, force = false) {
   const runId = await startAutomationRun("sentiment-scan-cache-30m", {
     requested_limit: Number(limitInput || 12),
   });
   const limit = Math.min(Math.max(Number(limitInput || 12), 3), 20);
   try {
-    const cached = await readCached("MARKET", "market");
+    const cached = force ? null : await readCached("MARKET", "market");
     if (cached) {
       await finishAutomationRun(runId, "success", Array.isArray(cached.trend_json?.trends) ? cached.trend_json.trends.length : 0, null, {
         cache_hit: true,
@@ -222,7 +222,7 @@ serve(async (req) => {
     if (mode === "coin") {
       return json(await coinScan(body.symbol || url.searchParams.get("symbol")), 200, corsHeaders);
     }
-    return json(await marketScan(body.limit || url.searchParams.get("limit")), 200, corsHeaders);
+    return json(await marketScan(body.limit || url.searchParams.get("limit"), Boolean(body.force || auth.cron)), 200, corsHeaders);
   } catch (error) {
     const status = error instanceof ApiError ? error.status : 500;
     const payload = error instanceof ApiError
