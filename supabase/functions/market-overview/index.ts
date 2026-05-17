@@ -246,8 +246,12 @@ function normalizePanel(
     error_summary: typeof payload?.error_summary === "string" ? payload.error_summary as string : fallback?.error_summary || null,
   });
   if (run) {
-    normalized.run_status = (run.status as RunStatus) || normalized.run_status;
-    normalized.error_summary = (run.error_summary as string | null) || normalized.error_summary;
+    if (!payload) {
+      normalized.run_status = (run.status as RunStatus) || normalized.run_status;
+      normalized.error_summary = (run.error_summary as string | null) || normalized.error_summary;
+    } else if (run.status === "failed" && !normalized.error_summary) {
+      normalized.error_summary = run.error_summary as string | null;
+    }
     if (!normalized.created_at) normalized.created_at = String(run.finished_at || run.started_at || "");
   }
   return normalized;
